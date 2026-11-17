@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "bingo": {
+      "rooms": {
+        "$room": { ".read": "auth != null", ".write": "auth != null" }
+      }
+    },
+    "bingo-ch3": {
+      "rooms": {
+        "$room": { ".read": "auth != null", ".write": "auth != null" }
+      }
+    },
+    "teachers": {
+      "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": false }
+    },
+    "students": {
+      ".read": "auth != null && root.child('teachers').child(auth.uid).val() === true",
+      "$sid": {
+        ".read": "auth != null && auth.token.email === $sid + '@student.bio'",
+        ".write": "auth != null && (auth.token.email === $sid + '@student.bio' || root.child('teachers').child(auth.uid).val() === true)"
+      }
+    }
+  }
+}

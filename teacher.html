@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>老師工具｜生物學習網站</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body{ padding-top:0; }
+  .top{ display:flex; align-items:center; gap:12px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--c-line); }
+  .top h1{ font-size:1.25rem; margin:0; } .top .sp{ flex:1; }
+  section{ margin-bottom:22px; }
+  label{ font-weight:700; }
+  input[type=text], input[type=number], input[type=password], select{ min-height:46px; border:2px solid var(--c-line); border-radius:12px; padding:6px 12px; font:inherit; }
+  .form{ display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; }
+  .form > div{ display:flex; flex-direction:column; gap:4px; }
+  table.list{ width:100%; border-collapse:collapse; background:#fff; margin-top:12px; font-size:.95rem; }
+  table.list th, table.list td{ border:1px solid var(--c-line); padding:6px 8px; text-align:center; }
+  table.list th{ background:#F1F0EA; }
+  .ok{ color:var(--c-ok); font-weight:700; } .ng{ color:var(--c-ng); font-weight:700; } .mut{ color:var(--c-muted); }
+  .log{ max-height:160px; overflow:auto; background:#FAFAF5; border-radius:12px; padding:8px 12px; font-size:.88rem; margin-top:10px; }
+  .hide{ display:none !important; }
+  code{ background:#F1F0EA; padding:2px 6px; border-radius:6px; }
+  #printArea{ display:none; }
+  @media print{
+    body > *:not(#printArea){ display:none !important; }
+    #printArea{ display:grid !important; grid-template-columns:1fr 1fr; gap:0; }
+    .slip{ border:1px dashed #999; padding:12px 14px; font-size:13pt; page-break-inside:avoid; }
+    .slip b{ font-size:15pt; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <span style="font-size:1.8rem">👩‍🏫</span><h1>老師工具</h1><span class="sp"></span>
+  <a class="btn ghost" href="index.html">🏠 回總入口</a>
+</header>
+<main class="wrap">
+  <div id="gate" class="card">連線中…</div>
+
+  <div id="tools" class="hide">
+    <section class="card">
+      <h2>① 批次建立學生帳號</h2>
+      <p class="mut" style="margin-top:0">學生登入時輸入「班級＋座號＋密碼」。帳號會建立成 <code>班級-座號@student.bio</code>（例如 <code>701-05@student.bio</code>），學生不用記這串。</p>
+      <div class="form">
+        <div><label for="cCls">班級（英文或數字）</label><input type="text" id="cCls" placeholder="701" style="width:120px"></div>
+        <div><label for="cFrom">座號從</label><input type="number" id="cFrom" value="1" min="1" style="width:90px"></div>
+        <div><label for="cTo">到</label><input type="number" id="cTo" value="30" min="1" style="width:90px"></div>
+        <div><label for="cSkip">略過座號（可空白，用逗號分隔）</label><input type="text" id="cSkip" placeholder="例如 13,27" style="width:200px"></div>
+      </div>
+      <div class="form" style="margin-top:12px">
+        <div><label>密碼方式</label>
+          <span><label style="font-weight:400"><input type="radio" name="pwMode" value="rand" checked> 每人隨機 6 位數字（建議）</label>
+          <label style="font-weight:400;margin-left:12px"><input type="radio" name="pwMode" value="same"> 全班統一密碼：</label>
+          <input type="text" id="cSame" placeholder="至少 6 個字元" style="width:160px"></span></div>
+      </div>
+      <div class="ops" style="margin-top:12px"><button class="btn" id="createBtn">➕ 建立帳號</button><button class="btn ghost hide" id="stopBtn">⏹ 停止</button></div>
+      <div class="log" id="cLog" style="display:none"></div>
+    </section>
+
+    <section class="card">
+      <h2>② 帳號清單與列印帳號條</h2>
+      <div class="form">
+        <div><label for="lCls">班級</label><select id="lCls"></select></div>
+        <button class="btn ghost" id="lLoad">📋 顯示清單</button>
+        <button class="btn ghost" id="lCopy">📄 複製（可貼到 Excel）</button>
+        <button class="btn" id="lPrint">🖨️ 列印帳號小紙條</button>
+      </div>
+      <p class="mut" style="margin-bottom:0">清單只顯示「初始密碼」。學生自己改過密碼的，會顯示「已自行修改」。</p>
+      <div id="lOut"></div>
+    </section>
+
+    <section class="card">
+      <h2>③ 學習進度總覽</h2>
+      <div class="form"><div><label for="pCls">班級</label><select id="pCls"></select></div><button class="btn" id="pLoad">📊 查看進度</button></div>
+      <div id="pOut"></div>
+    </section>
+
+    <section class="card">
+      <h2>④ 學生忘記密碼怎麼辦？</h2>
+      <ol>
+        <li>打開 <b>Firebase 主控台 → Authentication → 使用者</b>，搜尋 <code>班級-座號@student.bio</code>（例如 <code>701-05@student.bio</code>）。</li>
+        <li>按該列最右邊的「⋮」→ <b>刪除帳戶</b>。</li>
+        <li>回到這一頁，用 ① 只建立這一位同學（座號從 5 到 5），就會得到新密碼。</li>
+      </ol>
+      <p class="mut" style="margin-bottom:0">學習進度是存在「班級-座號」底下，重新建立帳號後，進度會保留。</p>
+    </section>
+  </div>
+</main>
+<div id="printArea"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="js/portal-common.js"></script>
+<script>
+(function(){
+  'use strict';
+  function $(id){ return document.getElementById(id); }
+  var students = {};   // sid → profile
+
+  auth.onAuthStateChanged(function(u){
+    if(!u || u.isAnonymous){ $('gate').innerHTML = '請先到 <a href="index.html">總入口</a> 用「老師登入」登入。'; return; }
+    isTeacher(u.uid).then(function(t){
+      if(!t){
+        $('gate').innerHTML = '<h2>還不是老師帳號</h2><p>你已經用 <b>' + esc(u.email) + '</b> 登入，但資料庫還沒把這個帳號設成老師。</p>' +
+          '<p>請到 <b>Firebase 主控台 → Realtime Database → 資料</b>，在最上層新增：</p>' +
+          '<p><code>teachers</code> → <code>' + esc(u.uid) + '</code> ＝ <code>true</code>（布林值）</p>' +
+          '<p>加好後重新整理這一頁。</p><p class="mut">你的 UID：<code>' + esc(u.uid) + '</code></p>';
+        return;
+      }
+      $('gate').classList.add('hide'); $('tools').classList.remove('hide');
+      loadStudents();
+    });
+  });
+
+  function loadStudents(){
+    return db.ref('students').get().then(function(s){
+      students = {};
+      var all = s.val() || {};
+      Object.keys(all).forEach(function(sid){ students[sid] = all[sid]; });
+      var classes = {};
+      Object.keys(students).forEach(function(sid){ classes[sid.split('-')[0]] = 1; });
+      var opts = Object.keys(classes).sort().map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+' 班</option>'; }).join('') || '<option value="">（還沒有學生帳號）</option>';
+      $('lCls').innerHTML = opts; $('pCls').innerHTML = opts;
+    }).catch(function(e){ alert('讀取學生資料失敗：' + authMsg(e)); });
+  }
+
+  /* ---------- ① 建立帳號 ---------- */
+  var creator = null, stopFlag = false;
+  function getCreator(){
+    if(creator) return Promise.resolve(creator);
+    creator = firebase.initializeApp(PORTAL_CFG.CONFIG, 'creator');
+    return creator.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).then(function(){ return creator; });
+  }
+  function randPw(){ var a = new Uint32Array(1); crypto.getRandomValues(a); return String(100000 + a[0] % 900000); }
+  function log(t){ var l = $('cLog'); l.style.display = ''; l.insertAdjacentHTML('beforeend', '<div>' + t + '</div>'); l.scrollTop = l.scrollHeight; }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  $('stopBtn').addEventListener('click', function(){ stopFlag = true; });
+  $('createBtn').addEventListener('click', function(){
+    var cls = normClass($('cCls').value), from = parseInt($('cFrom').value, 10), to = parseInt($('cTo').value, 10);
+    var skip = $('cSkip').value.split(/[,，\s]+/).filter(Boolean).map(function(x){ return parseInt(x, 10); });
+    var mode = document.querySelector('input[name=pwMode]:checked').value, same = $('cSame').value;
+    if(!validClass(cls)){ alert('班級只能是英文字母或數字，例如 701。'); return; }
+    if(!(from > 0 && to >= from && to - from < 60)){ alert('座號範圍不正確（一次最多 60 人）。'); return; }
+    if(mode === 'same' && same.length < 6){ alert('統一密碼至少要 6 個字元。'); return; }
+    var seats = []; for(var i=from;i<=to;i++) if(skip.indexOf(i) < 0) seats.push(i);
+    if(!confirm('要建立 ' + cls + ' 班 ' + seats.length + ' 個帳號嗎？')) return;
+    stopFlag = false; $('createBtn').disabled = true; $('stopBtn').classList.remove('hide'); $('cLog').innerHTML = '';
+    var made = 0;
+    getCreator().then(function(app){
+      var ca = app.auth(), cdb = app.database();
+      return seats.reduce(function(p, seat){
+        return p.then(function(){
+          if(stopFlag) return;
+          var sid = sidOf(cls, seat), pw = mode === 'same' ? same : randPw();
+          return ca.createUserWithEmailAndPassword(emailOf(sid), pw).then(function(){
+            return cdb.ref('students/' + sid + '/profile').update({ cls:cls, seat:seat, initPw:pw, pwChanged:false, createdAt:firebase.database.ServerValue.TIMESTAMP });
+          }).then(function(){ made++; log('<span class="ok">✔ ' + cls + ' 班 ' + seat + ' 號　密碼 ' + esc(pw) + '</span>'); return ca.signOut(); })
+            .catch(function(e){
+              log('<span class="ng">✘ ' + cls + ' 班 ' + seat + ' 號：' + esc(authMsg(e)) + '</span>');
+              if(/too-many-requests/.test(e.code || '')){ stopFlag = true; log('<b>Firebase 限制短時間內建立太多帳號，請等 1 小時後再建立剩下的座號。</b>'); }
+              return ca.signOut().catch(function(){});
+            })
+            .then(function(){ return sleep(350); });
+        });
+      }, Promise.resolve());
+    }).then(function(){
+      log('<b>完成：成功建立 ' + made + ' 個帳號。</b>到 ② 選 ' + cls + ' 班，可以列印帳號小紙條。');
+    }).catch(function(e){ log('<span class="ng">' + esc(authMsg(e)) + '</span>'); })
+      .then(function(){ $('createBtn').disabled = false; $('stopBtn').classList.add('hide'); loadStudents().then(function(){ $('lCls').value = cls; $('pCls').value = cls; }); });
+  });
+
+  /* ---------- ② 清單／列印 ---------- */
+  function classRows(cls){
+    return Object.keys(students).filter(function(sid){ return sid.split('-')[0] === cls; }).sort().map(function(sid){
+      var p = (students[sid] || {}).profile || {};
+      return { sid:sid, seat:parseInt(sid.split('-')[1], 10), pw: p.pwChanged ? '（已自行修改）' : (p.initPw || '（未記錄）') };
+    });
+  }
+  $('lLoad').addEventListener('click', function(){
+    var rows = classRows($('lCls').value);
+    $('lOut').innerHTML = rows.length ? '<table class="list"><tr><th>班級</th><th>座號</th><th>登入時輸入</th><th>密碼</th></tr>' + rows.map(function(r){ return '<tr><td>'+esc($('lCls').value)+'</td><td>'+r.seat+'</td><td>班級 '+esc($('lCls').value)+'・座號 '+r.seat+'</td><td>'+esc(r.pw)+'</td></tr>'; }).join('') + '</table>' : '<p class="mut">這個班還沒有帳號。</p>';
+  });
+  $('lCopy').addEventListener('click', function(){
+    var cls = $('lCls').value, rows = classRows(cls);
+    var txt = '班級\t座號\t密碼\n' + rows.map(function(r){ return cls + '\t' + r.seat + '\t' + r.pw; }).join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function(){ alert('已複製，可以直接貼到 Excel 或 Google 試算表。'); }, function(){ prompt('請全選複製：', txt); });
+  });
+  $('lPrint').addEventListener('click', function(){
+    var cls = $('lCls').value, rows = classRows(cls);
+    if(!rows.length){ alert('這個班還沒有帳號。'); return; }
+    $('printArea').innerHTML = rows.map(function(r){
+      return '<div class="slip">🧬 <b>生物學習網站</b><br>網址：batyunching.github.io/bio/<br>班級：<b>' + esc(cls) + '</b>　座號：<b>' + r.seat + '</b><br>密碼：<b>' + esc(r.pw) + '</b><br><span style="font-size:10pt">請保管好密碼，用完共用平板記得登出。</span></div>';
+    }).join('');
+    window.print();
+  });
+
+  /* ---------- ③ 進度總覽 ---------- */
+  function parse(v, d){ try{ return v == null ? d : JSON.parse(v); }catch(e){ return d; } }
+  function fmtTime(t){ if(!t) return '—'; var d = new Date(t); return (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2); }
+  $('pLoad').addEventListener('click', function(){
+    loadStudents().then(function(){
+      var cls = $('pCls').value;
+      var sids = Object.keys(students).filter(function(sid){ return sid.split('-')[0] === cls; }).sort();
+      if(!sids.length){ $('pOut').innerHTML = '<p class="mut">這個班還沒有帳號。</p>'; return; }
+      var rows = sids.map(function(sid){
+        var s = students[sid] || {}, d3 = (s.data || {}).ch3 || {}, d2 = (s.data || {}).ch2 || {}, seen = s.lastSeen || {};
+        var und = parse(d3['ch3%2Eunderstood'], []), wb = parse(d3['ch3%2Ewrongbook'], []), bd = parse(d3['ch3%2Ebadges'], {}), lab = parse(d3['ch3%2ElabDone'], {}), qh = parse(d3['ch3%2EquizHistory'], []);
+        var lastQ = qh.length ? qh[qh.length-1] : null;
+        return '<tr><td>' + parseInt(sid.split('-')[1], 10) + '</td>' +
+          '<td>' + fmtTime(seen.ch2) + '</td><td>' + Object.keys(d2).length + '</td>' +
+          '<td>' + fmtTime(seen.ch3) + '</td><td>' + und.length + ' / 15</td><td>' + Object.keys(lab).length + ' / 3</td>' +
+          '<td>' + (lastQ ? lastQ.right + ' / ' + lastQ.total : '—') + '</td><td>' + wb.length + '</td><td>' + Object.keys(bd).map(function(k){ return {plumber:'🔧',courier:'🏅',immune:'🛡️',bingo:'🎯'}[k] || ''; }).join('') + '</td></tr>';
+      }).join('');
+      $('pOut').innerHTML = '<table class="list"><tr><th rowspan="2">座號</th><th colspan="2">第 2 章</th><th colspan="6">第 3 章</th></tr>' +
+        '<tr><th>最近使用</th><th>紀錄筆數</th><th>最近使用</th><th>概念卡</th><th>實驗</th><th>最近一次練習</th><th>錯題本</th><th>徽章</th></tr>' + rows + '</table>' +
+        '<p class="mut">「最近使用」是學生最後一次打開該章網站的時間。</p>';
+    });
+  });
+})();
+</script>
+</body>
+</html>

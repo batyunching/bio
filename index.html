@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生物學習網站｜總入口</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body{ padding-top:0; }
+  .top{ display:flex; align-items:center; gap:12px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--c-line); }
+  .top h1{ font-size:1.25rem; margin:0; }
+  .top .sp{ flex:1; }
+  .hero{ background:linear-gradient(120deg,#43A047,#E53935 55%,#1E88E5); color:#fff; border-radius:24px; padding:28px; margin-bottom:22px; }
+  .hero h2{ margin:0 0 6px; font-size:1.7rem; }
+  .login{ max-width:460px; margin:0 auto; }
+  .login label{ display:block; font-weight:700; margin:12px 0 4px; }
+  .login input{ width:100%; min-height:52px; border:2px solid var(--c-line); border-radius:14px; padding:8px 14px; font:inherit; font-size:1.1rem; }
+  .login input:focus{ outline:none; border-color:#1E88E5; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .err{ color:var(--c-ng); font-weight:700; min-height:1.6em; margin-top:8px; }
+  .chapters{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; }
+  .chap{ text-decoration:none; border-top:8px solid var(--cc); display:flex; flex-direction:column; gap:8px; transition:transform .2s; }
+  .chap:hover{ transform:translateY(-4px); }
+  .chap .ic{ font-size:3rem; }
+  .chap .no{ font-weight:900; color:var(--cc); }
+  .chap h3{ margin:0; font-size:1.4rem; }
+  .chap small{ color:var(--c-muted); }
+  .chap .go{ margin-top:auto; font-weight:900; color:var(--cc); }
+  .soon{ opacity:.6; border-top-color:#B0BEC5; }
+  .hide{ display:none !important; }
+  .loading{ text-align:center; padding:60px; color:var(--c-muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <span style="font-size:1.8rem">🧬</span><h1>生物學習網站</h1><span class="sp"></span>
+  <span id="who" class="hide" style="font-weight:900"></span>
+  <a class="btn ghost hide" id="teacherBtn" href="teacher.html">👩‍🏫 老師工具</a>
+  <button class="btn ghost hide" id="pwBtn">🔑 改密碼</button>
+  <button class="btn hide" id="outBtn">登出</button>
+</header>
+<main class="wrap">
+  <div id="loading" class="loading">連線中…</div>
+
+  <!-- 登入 -->
+  <section id="loginBox" class="hide">
+    <div class="hero"><h2>歡迎來到生物學習網站 🧬</h2><p style="margin:0">用老師發的帳號登入，就能進入每一章的學習網站。在哪一台平板登入，學習進度都會跟著你。</p></div>
+    <div class="card login">
+      <div class="seg" id="segWho" style="margin-bottom:6px"><button data-v="stu" aria-pressed="true">🎒 學生登入</button><button data-v="tea">👩‍🏫 老師登入</button></div>
+      <form id="stuForm">
+        <div class="row2">
+          <div><label for="cls">班級</label><input id="cls" inputmode="numeric" autocomplete="off" placeholder="例如 701" required></div>
+          <div><label for="seat">座號</label><input id="seat" type="number" min="1" max="99" inputmode="numeric" placeholder="例如 5" required></div>
+        </div>
+        <label for="pw">密碼</label><input id="pw" type="password" autocomplete="current-password" required>
+        <div class="err" id="err"></div>
+        <button class="btn" style="width:100%;font-size:1.15rem" type="submit">登入 ▶</button>
+        <p style="color:var(--c-muted);font-size:.85rem;margin-bottom:0">忘記密碼請找老師。用完共用平板記得按右上角「登出」。</p>
+      </form>
+      <form id="teaForm" class="hide">
+        <label for="tEmail">電子郵件</label><input id="tEmail" type="email" autocomplete="username" required>
+        <label for="tPw">密碼</label><input id="tPw" type="password" autocomplete="current-password" required>
+        <div class="err" id="tErr"></div>
+        <button class="btn" style="width:100%;font-size:1.15rem" type="submit">老師登入 ▶</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- 章節選單 -->
+  <section id="homeBox" class="hide">
+    <div class="hero"><h2 id="hello">嗨！</h2><p style="margin:0">選擇要進入的學習網站：</p></div>
+    <div class="chapters" id="chapters"></div>
+  </section>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="js/portal-common.js"></script>
+<script>
+(function(){
+  'use strict';
+  function $(id){ return document.getElementById(id); }
+  var params = new URLSearchParams(location.search), next = params.get('next') || '';
+  if(next && next.indexOf('https://batyunching.github.io/') !== 0) next = '';
+
+  // 學生／老師分頁
+  document.querySelectorAll('#segWho button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#segWho button').forEach(function(x){ x.setAttribute('aria-pressed', x === b); });
+      $('stuForm').classList.toggle('hide', b.getAttribute('data-v') !== 'stu');
+      $('teaForm').classList.toggle('hide', b.getAttribute('data-v') !== 'tea');
+    });
+  });
+  try{ var last = localStorage.getItem('bio_lastClass'); if(last) $('cls').value = last; }catch(e){}
+
+  $('stuForm').addEventListener('submit', function(e){
+    e.preventDefault(); $('err').textContent = '';
+    var cls = $('cls').value, seat = $('seat').value;
+    if(!validClass(cls)){ $('err').textContent = '班級只能是英文字母或數字，例如 701。'; return; }
+    if(!(parseInt(seat, 10) > 0)){ $('err').textContent = '請輸入座號。'; return; }
+    try{ localStorage.setItem('bio_lastClass', normClass(cls)); }catch(e2){}
+    auth.signInWithEmailAndPassword(emailOf(sidOf(cls, seat)), $('pw').value).catch(function(er){ $('err').textContent = authMsg(er); });
+  });
+  $('teaForm').addEventListener('submit', function(e){
+    e.preventDefault(); $('tErr').textContent = '';
+    auth.signInWithEmailAndPassword($('tEmail').value.trim(), $('tPw').value).catch(function(er){ $('tErr').textContent = authMsg(er); });
+  });
+  $('outBtn').addEventListener('click', function(){
+    if(!confirm('確定要登出嗎？')) return;
+    auth.signOut().then(function(){ location.href = location.pathname; });
+  });
+  $('pwBtn').addEventListener('click', function(){
+    var oldPw = prompt('請輸入「目前的密碼」：'); if(!oldPw) return;
+    var nw = prompt('請輸入「新密碼」（至少 6 個字元）：'); if(!nw) return;
+    if(nw.length < 6){ alert('新密碼至少要 6 個字元。'); return; }
+    var u = auth.currentUser, cred = firebase.auth.EmailAuthProvider.credential(u.email, oldPw);
+    u.reauthenticateWithCredential(cred).then(function(){ return u.updatePassword(nw); }).then(function(){
+      var sid = sidFromEmail(u.email); if(sid) db.ref('students/' + sid + '/profile/pwChanged').set(true).catch(function(){});
+      alert('密碼已更新，請記住新密碼！');
+    }).catch(function(er){ alert(authMsg(er)); });
+  });
+
+  function renderHome(u, teacher){
+    var sid = sidFromEmail(u.email);
+    var name = sid ? sid.split('-')[0] + ' 班 ' + parseInt(sid.split('-')[1], 10) + ' 號' : (teacher ? '老師' : u.email);
+    $('who').textContent = (teacher ? '👩‍🏫 ' : '👤 ') + name;
+    $('hello').textContent = '嗨，' + name + '！';
+    $('chapters').innerHTML = PORTAL_CFG.CHAPTERS.map(function(c){
+      return '<a class="card chap" style="--cc:'+c.color+'" href="'+c.url+'"><span class="ic">'+c.icon+'</span><span class="no">'+c.no+'</span><h3>'+esc(c.title)+'</h3><small>'+esc(c.units)+'</small><span class="go">進入學習網站 ▶</span></a>';
+    }).join('') + '<div class="card chap soon" style="--cc:#90A4AE"><span class="ic">📚</span><span class="no">更多章節</span><h3>製作中…</h3><small>老師完成新的章節後會出現在這裡</small></div>';
+    ['who','outBtn'].forEach(function(id){ $(id).classList.remove('hide'); });
+    $('pwBtn').classList.toggle('hide', !sid);
+    $('teacherBtn').classList.toggle('hide', !teacher);
+    $('homeBox').classList.remove('hide'); $('loginBox').classList.add('hide');
+  }
+  auth.onAuthStateChanged(function(u){
+    $('loading').classList.add('hide');
+    if(!u || u.isAnonymous){
+      ['who','outBtn','pwBtn','teacherBtn','homeBox'].forEach(function(id){ $(id).classList.add('hide'); });
+      $('loginBox').classList.remove('hide');
+      if(u && u.isAnonymous) auth.signOut();
+      return;
+    }
+    if(next){ location.replace(next); return; }
+    isTeacher(u.uid).then(function(t){ renderHome(u, t); });
+  });
+})();
+</script>
+</body>
+</html>

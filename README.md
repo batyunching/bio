@@ -1,0 +1,61 @@
+# 生物學習網站｜總入口（共用帳號）
+
+網址：https://batyunching.github.io/bio/
+
+學生用「班級＋座號＋密碼」登入一次，就能進入每一章的學習網站，學習進度存在雲端，換平板也看得到。
+
+| 檔案 | 用途 |
+| --- | --- |
+| `index.html` | 總入口：學生／老師登入、章節選單、學生改密碼 |
+| `teacher.html` | 老師工具：批次建立學生帳號、列印帳號小紙條、學習進度總覽 |
+| `js/account.js` | **各章共用的帳號程式**（登入檢查、雲端進度同步、右下角「總目錄／登出」） |
+| `js/portal-common.js` | 總入口的設定；**以後新增章節，在 `CHAPTERS` 加一筆** |
+| `database.rules.json` | 要貼到 Firebase 的資料庫規則 |
+
+---
+
+## 第一次設定（只要做一次）
+
+### A. Firebase 主控台（專案：bio-ch2-bingo）
+
+1. **開啟帳號密碼登入**：Authentication →「Sign-in method／登入方式」→ 新增供應商 →「電子郵件/密碼」→ 啟用第一個開關 → 儲存。
+   （「匿名」登入請保持開啟，第 2 章賓果的備用連線還會用到。）
+2. **建立老師帳號**：Authentication →「Users／使用者」→「新增使用者」→ 輸入你的電子郵件和密碼。
+3. **複製老師的 UID**：在使用者清單找到剛剛的帳號，複製「使用者 UID」。
+4. **把自己設成老師**：Realtime Database →「資料」→ 在最上層按「＋」：
+   - 名稱：`teachers` → 再在它底下按「＋」
+   - 名稱：剛剛複製的 UID，值：`true`（布林值）
+5. **更新資料庫規則**：Realtime Database →「規則」→ 先和目前的規則比對，再把 `database.rules.json` 的內容貼上 →「發布」。
+   新規則包含：第 2 章原本的 `bingo`、第 3 章的 `bingo-ch3`、老師名單 `teachers`、學生資料 `students`（學生只能讀寫自己的資料，老師可以看全部）。
+
+### B. GitHub
+
+6. **總入口**：新建 repo `bio`（Public）→ 上傳「生物總入口網頁」資料夾裡的全部檔案 → Settings → Pages → Branch 選 `main`、資料夾 `/(root)` → Save。
+7. **第 3 章**：新建 repo `bio-ch3` → 上傳「生物第3章網頁」資料夾裡的全部檔案 → 同樣開啟 Pages。
+8. **第 2 章**：到 repo `bio-ch2`，用「生物第2章網頁\共用帳號版\index.html」取代原本的 `index.html`。
+
+### C. 建立學生帳號
+
+9. 打開 https://batyunching.github.io/bio/ →「老師登入」→ 右上角「老師工具」。
+10. ① 輸入班級、座號範圍 →「建立帳號」。
+11. ② 選班級 →「列印帳號小紙條」，剪下來發給學生。
+
+---
+
+## 學生怎麼用
+
+1. 打開 https://batyunching.github.io/bio/ ，輸入班級、座號、密碼。
+2. 選擇要進入的章節。
+3. 右下角有「🏠 總目錄」和「登出」。**共用平板用完一定要登出。**
+
+直接打開某一章的網址時，如果還沒登入，會自動先帶到登入頁，登入後再回到原本的頁面。
+
+## 常見問題
+
+- **學生忘記密碼**：Firebase 主控台 → Authentication → 搜尋 `班級-座號@student.bio` → 刪除帳戶 → 到老師工具 ① 只重建這一位。學習進度存在「班級-座號」底下，會保留。
+- **一次建立很多帳號出現「嘗試太多次」**：Firebase 限制同一個網路短時間內建立的帳號數量，等 1 小時後再建立剩下的座號。
+- **在自己電腦直接雙擊開檔案**：不會要求登入，方便備課；只有放在 batyunching.github.io 上才會啟用帳號系統。
+- **新增章節**：新章節網站的 `<head>` 加上
+  `<script src="https://batyunching.github.io/bio/js/account.js" data-chapter="ch4" data-prefix="該章 localStorage 名稱開頭"></script>`，
+  再到 `js/portal-common.js` 的 `CHAPTERS` 加一筆。
+- **安全性**：前端看得到 `apiKey` 是正常的，它不是密碼；資料安全靠資料庫規則保護。帳號只用「班級-座號」，不存學生真實姓名。
