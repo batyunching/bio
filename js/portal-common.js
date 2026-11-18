@@ -37,5 +37,8 @@ function authMsg(e){
   if(/PERMISSION_DENIED|permission/i.test(c + (e && e.message))) return '資料庫規則不允許這個動作（請確認已貼上新的規則）。';
   return (e && e.message) || '發生錯誤';
 }
-function isTeacher(uid){ return db.ref('teachers/' + uid).get().then(function(s){ return s.val() === true; }, function(){ return false; }); }
+function readFlag(path){ return db.ref(path).get().then(function(s){ return s.val() === true; }, function(){ return false; }); }
+/* 角色：teacher＝生物老師（只看自己的班）；admin＝管理人（看全部、可指派班級） */
+function getRoles(uid){ return Promise.all([readFlag('teachers/' + uid), readFlag('admins/' + uid)]).then(function(r){ return { teacher:r[0] || r[1], admin:r[1] }; }); }
+function isTeacher(uid){ return getRoles(uid).then(function(r){ return r.teacher; }); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
