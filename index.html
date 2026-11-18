@@ -62,6 +62,7 @@
         <label for="tPw">密碼</label><input id="tPw" type="password" autocomplete="current-password" required>
         <div class="err" id="tErr"></div>
         <button class="btn" style="width:100%;font-size:1.15rem" type="submit">老師登入 ▶</button>
+        <p style="text-align:right;margin-bottom:0"><button type="button" class="btn ghost" id="forgotBtn" style="min-height:40px;padding:4px 14px;font-size:.9rem">忘記密碼？</button></p>
       </form>
     </div>
   </section>
@@ -106,6 +107,14 @@
     e.preventDefault(); $('tErr').textContent = '';
     auth.signInWithEmailAndPassword($('tEmail').value.trim(), $('tPw').value).catch(function(er){ $('tErr').textContent = authMsg(er); });
   });
+  $('forgotBtn').addEventListener('click', function(){
+    var em = $('tEmail').value.trim();
+    if(!em){ $('tErr').textContent = '請先在上面填入你的電子郵件，再按「忘記密碼？」。'; return; }
+    if(sidFromEmail(em)){ $('tErr').textContent = '學生帳號沒有電子信箱，忘記密碼請找老師。'; return; }
+    auth.sendPasswordResetEmail(em).then(function(){
+      $('tErr').innerHTML = '<span style="color:var(--c-ok)">已寄出重設密碼的信到 ' + esc(em) + '，請到信箱收信（也看看垃圾郵件）。</span>';
+    }, function(er){ $('tErr').textContent = authMsg(er); });
+  });
   $('outBtn').addEventListener('click', function(){
     if(!confirm('確定要登出嗎？')) return;
     auth.signOut().then(function(){ location.href = location.pathname; });
@@ -121,16 +130,16 @@
     }).catch(function(er){ alert(authMsg(er)); });
   });
 
-  function renderHome(u, teacher){
+  function renderHome(u, teacher, admin){
     var sid = sidFromEmail(u.email);
     var name = sid ? sid.split('-')[0] + ' 班 ' + parseInt(sid.split('-')[1], 10) + ' 號' : (teacher ? '老師' : u.email);
-    $('who').textContent = (teacher ? '👩‍🏫 ' : '👤 ') + name;
+    $('who').textContent = (teacher ? '👩‍🏫 ' : '👤 ') + name + (admin ? '（管理人）' : '');
     $('hello').textContent = '嗨，' + name + '！';
     $('chapters').innerHTML = PORTAL_CFG.CHAPTERS.map(function(c){
       return '<a class="card chap" style="--cc:'+c.color+'" href="'+c.url+'"><span class="ic">'+c.icon+'</span><span class="no">'+c.no+'</span><h3>'+esc(c.title)+'</h3><small>'+esc(c.units)+'</small><span class="go">進入學習網站 ▶</span></a>';
     }).join('') + '<div class="card chap soon" style="--cc:#90A4AE"><span class="ic">📚</span><span class="no">更多章節</span><h3>製作中…</h3><small>老師完成新的章節後會出現在這裡</small></div>';
     ['who','outBtn'].forEach(function(id){ $(id).classList.remove('hide'); });
-    $('pwBtn').classList.toggle('hide', !sid);
+    $('pwBtn').classList.remove('hide');
     $('teacherBtn').classList.toggle('hide', !teacher);
     $('homeBox').classList.remove('hide'); $('loginBox').classList.add('hide');
   }
@@ -143,7 +152,7 @@
       return;
     }
     if(next){ location.replace(next); return; }
-    isTeacher(u.uid).then(function(t){ renderHome(u, t); });
+    getRoles(u.uid).then(function(r){ renderHome(u, r.teacher, r.admin); });
   });
 })();
 </script>

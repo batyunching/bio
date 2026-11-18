@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="css/style.css">
 <style>
   body{ padding-top:0; }
-  .top{ display:flex; align-items:center; gap:12px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--c-line); }
+  .top{ display:flex; align-items:center; gap:12px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--c-line); flex-wrap:wrap; }
   .top h1{ font-size:1.25rem; margin:0; } .top .sp{ flex:1; }
   section{ margin-bottom:22px; }
   label{ font-weight:700; }
@@ -21,6 +21,9 @@
   .log{ max-height:160px; overflow:auto; background:#FAFAF5; border-radius:12px; padding:8px 12px; font-size:.88rem; margin-top:10px; }
   .hide{ display:none !important; }
   code{ background:#F1F0EA; padding:2px 6px; border-radius:6px; }
+  .role{ display:inline-block; padding:2px 12px; border-radius:999px; font-weight:900; font-size:.85rem; }
+  .role.admin{ background:#263238; color:#fff; } .role.teacher{ background:#E3F2FD; color:#1565C0; }
+  .admin-card{ border:3px solid #263238; }
   #printArea{ display:none; }
   @media print{
     body > *:not(#printArea){ display:none !important; }
@@ -32,7 +35,7 @@
 </head>
 <body>
 <header class="top">
-  <span style="font-size:1.8rem">👩‍🏫</span><h1>老師工具</h1><span class="sp"></span>
+  <span style="font-size:1.8rem">👩‍🏫</span><h1>老師工具</h1><span id="roleTag"></span><span class="sp"></span>
   <a class="btn ghost" href="index.html">🏠 回總入口</a>
 </header>
 <main class="wrap">
@@ -40,8 +43,17 @@
 
   <div id="tools" class="hide">
     <section class="card">
+      <div class="form">
+        <div><label for="myName">您的稱呼（會顯示在班級負責老師）</label><input type="text" id="myName" placeholder="例如 黃老師" style="width:220px"></div>
+        <button class="btn ghost" id="saveName">💾 儲存</button>
+        <span class="mut" id="myEmail"></span>
+      </div>
+      <p class="mut" id="scopeNote" style="margin-bottom:0"></p>
+    </section>
+
+    <section class="card">
       <h2>① 批次建立學生帳號</h2>
-      <p class="mut" style="margin-top:0">學生登入時輸入「班級＋座號＋密碼」。帳號會建立成 <code>班級-座號@student.bio</code>（例如 <code>701-05@student.bio</code>），學生不用記這串。</p>
+      <p class="mut" style="margin-top:0">學生登入時輸入「班級＋座號＋密碼」。<b>第一次幫某一班建立帳號時，這個班就會登記在你名下</b>，其他老師看不到、也不能再建同一班。</p>
       <div class="form">
         <div><label for="cCls">班級（英文或數字）</label><input type="text" id="cCls" placeholder="701" style="width:120px"></div>
         <div><label for="cFrom">座號從</label><input type="number" id="cFrom" value="1" min="1" style="width:90px"></div>
@@ -77,13 +89,27 @@
     </section>
 
     <section class="card">
-      <h2>④ 學生忘記密碼怎麼辦？</h2>
-      <ol>
-        <li>打開 <b>Firebase 主控台 → Authentication → 使用者</b>，搜尋 <code>班級-座號@student.bio</code>（例如 <code>701-05@student.bio</code>）。</li>
-        <li>按該列最右邊的「⋮」→ <b>刪除帳戶</b>。</li>
-        <li>回到這一頁，用 ① 只建立這一位同學（座號從 5 到 5），就會得到新密碼。</li>
-      </ol>
-      <p class="mut" style="margin-bottom:0">學習進度是存在「班級-座號」底下，重新建立帳號後，進度會保留。</p>
+      <h2>④ 忘記密碼怎麼辦？</h2>
+      <p><b>學生忘記密碼</b>：請管理人在 Firebase 主控台刪除該學生帳號（<code>班級-座號@student.bio</code>），再由任課老師用 ① 只重建這一位（例如座號從 5 到 5）。學習進度存在「班級-座號」底下，會保留。</p>
+      <p style="margin-bottom:0"><b>老師忘記密碼</b>：在總入口「老師登入」按「忘記密碼？」，重設信會寄到你的電子郵件。登入後也可以按「🔑 改密碼」。</p>
+    </section>
+
+    <section class="card admin-card hide" id="adminBox">
+      <h2>⑤ 管理人專區</h2>
+      <h3 style="margin-bottom:4px">班級與負責老師</h3>
+      <p class="mut" style="margin-top:0">可以把班級改指派給其他老師（例如換任課老師）。「未指派」的班級只有管理人看得到。</p>
+      <div id="aClasses"></div>
+      <h3 style="margin-bottom:4px">老師名單</h3>
+      <p class="mut" style="margin-top:0">老師要先登入老師工具一次，才會出現在這裡。</p>
+      <div id="aTeachers"></div>
+      <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">➕ 怎麼新增一位老師？</summary>
+        <ol>
+          <li>Firebase 主控台 → Authentication → 使用者 → 新增使用者（填老師的電子郵件和暫時密碼）。</li>
+          <li>複製他的「使用者 UID」。</li>
+          <li>Realtime Database → 資料 → <code>teachers</code> → ＋ → 索引鍵貼 UID，值 <code>true</code>。</li>
+          <li>請老師到總入口用「老師登入」，再打開老師工具一次，並填好「您的稱呼」。</li>
+        </ol>
+      </details>
     </section>
   </div>
 </main>
@@ -97,34 +123,76 @@
 (function(){
   'use strict';
   function $(id){ return document.getElementById(id); }
-  var students = {};   // sid → profile
+  var me = null, roles = { teacher:false, admin:false };
+  var scope = {};        // cls → { owner, seats:{n:true}, students:{ sid: data } }
+  var teachersInfo = {}; // uid → { name, email }
 
   auth.onAuthStateChanged(function(u){
     if(!u || u.isAnonymous){ $('gate').innerHTML = '請先到 <a href="index.html">總入口</a> 用「老師登入」登入。'; return; }
-    isTeacher(u.uid).then(function(t){
-      if(!t){
+    me = u;
+    getRoles(u.uid).then(function(r){
+      roles = r;
+      if(!r.teacher){
         $('gate').innerHTML = '<h2>還不是老師帳號</h2><p>你已經用 <b>' + esc(u.email) + '</b> 登入，但資料庫還沒把這個帳號設成老師。</p>' +
-          '<p>請到 <b>Firebase 主控台 → Realtime Database → 資料</b>，在最上層新增：</p>' +
-          '<p><code>teachers</code> → <code>' + esc(u.uid) + '</code> ＝ <code>true</code>（布林值）</p>' +
+          '<p>請管理人到 <b>Firebase 主控台 → Realtime Database → 資料</b>，在 <code>teachers</code> 底下新增：</p>' +
+          '<p><code>' + esc(u.uid) + '</code> ＝ <code>true</code>（布林值，不要加引號）</p>' +
           '<p>加好後重新整理這一頁。</p><p class="mut">你的 UID：<code>' + esc(u.uid) + '</code></p>';
         return;
       }
       $('gate').classList.add('hide'); $('tools').classList.remove('hide');
-      loadStudents();
+      $('roleTag').innerHTML = r.admin ? '<span class="role admin">管理人</span>' : '<span class="role teacher">生物老師</span>';
+      $('myEmail').textContent = u.email;
+      $('adminBox').classList.toggle('hide', !r.admin);
+      $('scopeNote').textContent = r.admin ? '你是管理人：可以看到所有班級，並在 ⑤ 指派班級的負責老師。' : '你只會看到自己負責的班級。';
+      db.ref('teacherInfo/' + u.uid).get().then(function(s){
+        var v = s.val() || {};
+        $('myName').value = v.name || '';
+        db.ref('teacherInfo/' + u.uid).update({ email:u.email, lastLogin:firebase.database.ServerValue.TIMESTAMP }).catch(function(){});
+      }).catch(function(){});
+      reload();
     });
   });
+  $('saveName').addEventListener('click', function(){
+    var n = $('myName').value.trim();
+    db.ref('teacherInfo/' + me.uid).update({ name:n, email:me.email }).then(function(){ alert('已儲存。'); reload(); }, function(e){ alert(authMsg(e)); });
+  });
 
-  function loadStudents(){
-    return db.ref('students').get().then(function(s){
-      students = {};
-      var all = s.val() || {};
-      Object.keys(all).forEach(function(sid){ students[sid] = all[sid]; });
-      var classes = {};
-      Object.keys(students).forEach(function(sid){ classes[sid.split('-')[0]] = 1; });
-      var opts = Object.keys(classes).sort().map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+' 班</option>'; }).join('') || '<option value="">（還沒有學生帳號）</option>';
+  /* ---------- 讀取可見範圍 ---------- */
+  function clsOfSid(sid, data){ return ((data && data.profile && data.profile.cls) || sid.split('-')[0]); }
+  function reload(){
+    scope = {};
+    var jobs = [db.ref('classes').get(), db.ref('teacherInfo').get()];
+    if(roles.admin) jobs.push(db.ref('students').get());
+    return Promise.all(jobs).then(function(res){
+      var classes = res[0].val() || {}; teachersInfo = res[1].val() || {};
+      if(roles.admin){
+        var st = res[2].val() || {};
+        Object.keys(classes).forEach(function(c){ scope[c] = { owner:classes[c].owner || null, seats:classes[c].seats || {}, students:{} }; });
+        Object.keys(st).forEach(function(sid){
+          var c = clsOfSid(sid, st[sid]);
+          if(!scope[c]) scope[c] = { owner:null, seats:{}, students:{}, orphan:true };
+          scope[c].students[sid] = st[sid];
+        });
+        return;
+      }
+      var mine = Object.keys(classes).filter(function(c){ return classes[c].owner === me.uid; });
+      return Promise.all(mine.map(function(c){
+        scope[c] = { owner:me.uid, seats:classes[c].seats || {}, students:{} };
+        return Promise.all(Object.keys(scope[c].seats).map(function(n){
+          var sid = sidOf(c, n);
+          return db.ref('students/' + sid).get().then(function(s){ if(s.val()) scope[c].students[sid] = s.val(); }, function(){});
+        }));
+      }));
+    }).then(function(){
+      var keys = Object.keys(scope).sort();
+      var opts = keys.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+' 班</option>'; }).join('') || '<option value="">（還沒有班級）</option>';
+      var lv = $('lCls').value, pv = $('pCls').value;
       $('lCls').innerHTML = opts; $('pCls').innerHTML = opts;
-    }).catch(function(e){ alert('讀取學生資料失敗：' + authMsg(e)); });
+      if(scope[lv]) $('lCls').value = lv; if(scope[pv]) $('pCls').value = pv;
+      if(roles.admin) renderAdmin();
+    }).catch(function(e){ alert('讀取資料失敗：' + authMsg(e)); });
   }
+  function teacherName(uid){ if(!uid) return '（未指派）'; var t = teachersInfo[uid]; return t ? (t.name || t.email || uid) : '（未登入過的老師）'; }
 
   /* ---------- ① 建立帳號 ---------- */
   var creator = null, stopFlag = false;
@@ -137,6 +205,13 @@
   function log(t){ var l = $('cLog'); l.style.display = ''; l.insertAdjacentHTML('beforeend', '<div>' + t + '</div>'); l.scrollTop = l.scrollHeight; }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
   $('stopBtn').addEventListener('click', function(){ stopFlag = true; });
+  function claimClass(cls){
+    return db.ref('classes/' + cls).get().then(function(s){
+      var v = s.val();
+      if(v && v.owner && v.owner !== me.uid && !roles.admin) throw new Error(cls + ' 班已經由「' + teacherName(v.owner) + '」建立。如果需要改由你負責，請找管理人在 ⑤ 改指派。');
+      if(!v || !v.owner) return db.ref('classes/' + cls).update({ owner:me.uid, createdAt:firebase.database.ServerValue.TIMESTAMP });
+    });
+  }
   $('createBtn').addEventListener('click', function(){
     var cls = normClass($('cCls').value), from = parseInt($('cFrom').value, 10), to = parseInt($('cTo').value, 10);
     var skip = $('cSkip').value.split(/[,，\s]+/).filter(Boolean).map(function(x){ return parseInt(x, 10); });
@@ -148,39 +223,45 @@
     if(!confirm('要建立 ' + cls + ' 班 ' + seats.length + ' 個帳號嗎？')) return;
     stopFlag = false; $('createBtn').disabled = true; $('stopBtn').classList.remove('hide'); $('cLog').innerHTML = '';
     var made = 0;
-    getCreator().then(function(app){
+    claimClass(cls).then(getCreator).then(function(app){
       var ca = app.auth(), cdb = app.database();
       return seats.reduce(function(p, seat){
         return p.then(function(){
           if(stopFlag) return;
           var sid = sidOf(cls, seat), pw = mode === 'same' ? same : randPw();
           return ca.createUserWithEmailAndPassword(emailOf(sid), pw).then(function(){
-            return cdb.ref('students/' + sid + '/profile').update({ cls:cls, seat:seat, initPw:pw, pwChanged:false, createdAt:firebase.database.ServerValue.TIMESTAMP });
-          }).then(function(){ made++; log('<span class="ok">✔ ' + cls + ' 班 ' + seat + ' 號　密碼 ' + esc(pw) + '</span>'); return ca.signOut(); })
-            .catch(function(e){
-              log('<span class="ng">✘ ' + cls + ' 班 ' + seat + ' 號：' + esc(authMsg(e)) + '</span>');
-              if(/too-many-requests/.test(e.code || '')){ stopFlag = true; log('<b>Firebase 限制短時間內建立太多帳號，請等 1 小時後再建立剩下的座號。</b>'); }
-              return ca.signOut().catch(function(){});
-            })
+            return cdb.ref('students/' + sid + '/profile').set({ cls:cls, seat:seat, initPw:pw, pwChanged:false, createdAt:firebase.database.ServerValue.TIMESTAMP });
+          }).then(function(){
+            made++; log('<span class="ok">✔ ' + cls + ' 班 ' + seat + ' 號　密碼 ' + esc(pw) + '</span>');
+            return ca.signOut();
+          }, function(e){
+            if(/email-already-in-use/.test(e.code || '')){ log('<span class="mut">・' + cls + ' 班 ' + seat + ' 號：帳號已經存在，已加入班級名單</span>'); return; }
+            log('<span class="ng">✘ ' + cls + ' 班 ' + seat + ' 號：' + esc(authMsg(e)) + '</span>');
+            if(/too-many-requests/.test(e.code || '')){ stopFlag = true; log('<b>Firebase 限制短時間內建立太多帳號，請等 1 小時後再建立剩下的座號。</b>'); }
+            return ca.signOut().catch(function(){}).then(function(){ throw 'skip'; });
+          }).then(function(){ return db.ref('classes/' + cls + '/seats/' + seat).set(true); })
+            .catch(function(e){ if(e !== 'skip') log('<span class="ng">✘ ' + cls + ' 班 ' + seat + ' 號：' + esc(authMsg(e)) + '</span>'); })
             .then(function(){ return sleep(350); });
         });
       }, Promise.resolve());
     }).then(function(){
-      log('<b>完成：成功建立 ' + made + ' 個帳號。</b>到 ② 選 ' + cls + ' 班，可以列印帳號小紙條。');
-    }).catch(function(e){ log('<span class="ng">' + esc(authMsg(e)) + '</span>'); })
-      .then(function(){ $('createBtn').disabled = false; $('stopBtn').classList.add('hide'); loadStudents().then(function(){ $('lCls').value = cls; $('pCls').value = cls; }); });
+      log('<b>完成：新建立 ' + made + ' 個帳號。</b>到 ② 選 ' + cls + ' 班，可以列印帳號小紙條。');
+    }).catch(function(e){ log('<span class="ng">' + esc(e && e.code ? authMsg(e) : (e && e.message) || e) + '</span>'); })
+      .then(function(){ $('createBtn').disabled = false; $('stopBtn').classList.add('hide'); return reload(); })
+      .then(function(){ if(scope[cls]){ $('lCls').value = cls; $('pCls').value = cls; } });
   });
 
   /* ---------- ② 清單／列印 ---------- */
   function classRows(cls){
-    return Object.keys(students).filter(function(sid){ return sid.split('-')[0] === cls; }).sort().map(function(sid){
-      var p = (students[sid] || {}).profile || {};
+    var c = scope[cls]; if(!c) return [];
+    return Object.keys(c.students).sort().map(function(sid){
+      var p = (c.students[sid] || {}).profile || {};
       return { sid:sid, seat:parseInt(sid.split('-')[1], 10), pw: p.pwChanged ? '（已自行修改）' : (p.initPw || '（未記錄）') };
     });
   }
   $('lLoad').addEventListener('click', function(){
-    var rows = classRows($('lCls').value);
-    $('lOut').innerHTML = rows.length ? '<table class="list"><tr><th>班級</th><th>座號</th><th>登入時輸入</th><th>密碼</th></tr>' + rows.map(function(r){ return '<tr><td>'+esc($('lCls').value)+'</td><td>'+r.seat+'</td><td>班級 '+esc($('lCls').value)+'・座號 '+r.seat+'</td><td>'+esc(r.pw)+'</td></tr>'; }).join('') + '</table>' : '<p class="mut">這個班還沒有帳號。</p>';
+    var cls = $('lCls').value, rows = classRows(cls);
+    $('lOut').innerHTML = rows.length ? '<table class="list"><tr><th>班級</th><th>座號</th><th>登入時輸入</th><th>密碼</th></tr>' + rows.map(function(r){ return '<tr><td>'+esc(cls)+'</td><td>'+r.seat+'</td><td>班級 '+esc(cls)+'・座號 '+r.seat+'</td><td>'+esc(r.pw)+'</td></tr>'; }).join('') + '</table>' : '<p class="mut">這個班還沒有帳號。</p>';
   });
   $('lCopy').addEventListener('click', function(){
     var cls = $('lCls').value, rows = classRows(cls);
@@ -200,12 +281,12 @@
   function parse(v, d){ try{ return v == null ? d : JSON.parse(v); }catch(e){ return d; } }
   function fmtTime(t){ if(!t) return '—'; var d = new Date(t); return (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2); }
   $('pLoad').addEventListener('click', function(){
-    loadStudents().then(function(){
-      var cls = $('pCls').value;
-      var sids = Object.keys(students).filter(function(sid){ return sid.split('-')[0] === cls; }).sort();
+    reload().then(function(){
+      var cls = $('pCls').value, c = scope[cls];
+      var sids = c ? Object.keys(c.students).sort() : [];
       if(!sids.length){ $('pOut').innerHTML = '<p class="mut">這個班還沒有帳號。</p>'; return; }
       var rows = sids.map(function(sid){
-        var s = students[sid] || {}, d3 = (s.data || {}).ch3 || {}, d2 = (s.data || {}).ch2 || {}, seen = s.lastSeen || {};
+        var s = c.students[sid] || {}, d3 = (s.data || {}).ch3 || {}, d2 = (s.data || {}).ch2 || {}, seen = s.lastSeen || {};
         var und = parse(d3['ch3%2Eunderstood'], []), wb = parse(d3['ch3%2Ewrongbook'], []), bd = parse(d3['ch3%2Ebadges'], {}), lab = parse(d3['ch3%2ElabDone'], {}), qh = parse(d3['ch3%2EquizHistory'], []);
         var lastQ = qh.length ? qh[qh.length-1] : null;
         return '<tr><td>' + parseInt(sid.split('-')[1], 10) + '</td>' +
@@ -217,6 +298,27 @@
         '<tr><th>最近使用</th><th>紀錄筆數</th><th>最近使用</th><th>概念卡</th><th>實驗</th><th>最近一次練習</th><th>錯題本</th><th>徽章</th></tr>' + rows + '</table>' +
         '<p class="mut">「最近使用」是學生最後一次打開該章網站的時間。</p>';
     });
+  });
+
+  /* ---------- ⑤ 管理人專區 ---------- */
+  function renderAdmin(){
+    var tids = Object.keys(teachersInfo);
+    var opt = function(sel){ return '<option value="">（未指派）</option>' + tids.map(function(t){ return '<option value="'+esc(t)+'"'+(t === sel ? ' selected' : '')+'>'+esc(teacherName(t))+'</option>'; }).join(''); };
+    var keys = Object.keys(scope).sort();
+    $('aClasses').innerHTML = keys.length ? '<table class="list"><tr><th>班級</th><th>學生帳號數</th><th>負責老師</th><th></th></tr>' + keys.map(function(c){
+      return '<tr><td>' + esc(c) + ' 班</td><td>' + Object.keys(scope[c].students).length + '</td><td><select data-cls="'+esc(c)+'">' + opt(scope[c].owner) + '</select></td><td><button class="btn ghost" data-assign="'+esc(c)+'">儲存</button></td></tr>';
+    }).join('') + '</table>' : '<p class="mut">還沒有班級。</p>';
+    $('aTeachers').innerHTML = tids.length ? '<table class="list"><tr><th>稱呼</th><th>電子郵件</th><th>負責班級</th><th>最近登入老師工具</th></tr>' + tids.map(function(t){
+      var mine = keys.filter(function(c){ return scope[c].owner === t; });
+      return '<tr><td>' + esc(teachersInfo[t].name || '（未填）') + '</td><td>' + esc(teachersInfo[t].email || '') + '</td><td>' + (mine.map(esc).join('、') || '—') + '</td><td>' + fmtTime(teachersInfo[t].lastLogin) + '</td></tr>';
+    }).join('') + '</table>' : '<p class="mut">還沒有老師登入過老師工具。</p>';
+  }
+  $('aClasses').addEventListener('click', function(e){
+    var b = e.target.closest('[data-assign]'); if(!b) return;
+    var c = b.getAttribute('data-assign'), owner = $('aClasses').querySelector('select[data-cls="'+c+'"]').value || null;
+    var seats = {}; Object.keys(scope[c].students).forEach(function(sid){ seats[parseInt(sid.split('-')[1], 10)] = true; });
+    Object.keys(scope[c].seats || {}).forEach(function(n){ seats[n] = true; });
+    db.ref('classes/' + c).update({ owner:owner, seats:seats }).then(function(){ alert(c + ' 班已指派給「' + teacherName(owner) + '」。'); reload(); }, function(e2){ alert(authMsg(e2)); });
   });
 })();
 </script>

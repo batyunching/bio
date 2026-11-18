@@ -1,23 +1,66 @@
 {
   "rules": {
+    ".read": false,
+    ".write": false,
     "bingo": {
       "rooms": {
-        "$room": { ".read": "auth != null", ".write": "auth != null" }
+        "$room": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
       }
     },
     "bingo-ch3": {
       "rooms": {
-        "$room": { ".read": "auth != null", ".write": "auth != null" }
+        "$room": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
       }
     },
     "teachers": {
-      "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": false }
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+    "teacherInfo": {
+      ".read": "auth != null && (root.child('teachers').child(auth.uid).val() === true || root.child('admins').child(auth.uid).val() === true)",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && (root.child('teachers').child(auth.uid).val() === true || root.child('admins').child(auth.uid).val() === true)"
+      }
+    },
+    "classes": {
+      ".read": "auth != null && (root.child('teachers').child(auth.uid).val() === true || root.child('admins').child(auth.uid).val() === true)",
+      "$cls": {
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (root.child('teachers').child(auth.uid).val() === true && (!data.exists() || data.child('owner').val() === auth.uid)))",
+        ".validate": "root.child('admins').child(auth.uid).val() === true || newData.child('owner').val() === auth.uid"
+      }
     },
     "students": {
-      ".read": "auth != null && root.child('teachers').child(auth.uid).val() === true",
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$sid": {
-        ".read": "auth != null && auth.token.email === $sid + '@student.bio'",
-        ".write": "auth != null && (auth.token.email === $sid + '@student.bio' || root.child('teachers').child(auth.uid).val() === true)"
+        ".read": "auth != null && (auth.token.email === $sid + '@student.bio' || root.child('classes').child(data.child('profile').child('cls').val()).child('owner').val() === auth.uid)",
+        "data": {
+          ".write": "auth != null && auth.token.email === $sid + '@student.bio'"
+        },
+        "lastSeen": {
+          ".write": "auth != null && auth.token.email === $sid + '@student.bio'"
+        },
+        "profile": {
+          ".write": "auth != null && ((!data.exists() && auth.token.email === $sid + '@student.bio') || root.child('admins').child(auth.uid).val() === true)",
+          "pwChanged": {
+            ".write": "auth != null && auth.token.email === $sid + '@student.bio'"
+          }
+        },
+        "$other": {
+          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+        }
       }
     }
   }
