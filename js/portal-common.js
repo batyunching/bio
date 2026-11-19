@@ -13,7 +13,8 @@ var PORTAL_CFG = {
   /* 章節清單：以後新增章節，在這裡加一筆就好 */
   CHAPTERS: [
     { id:'ch2', no:'第 2 章', title:'生物體的營養', units:'2-2 酵素・2-3 植物如何製造養分・2-4 人體如何獲得養分', url:'https://batyunching.github.io/bio-ch2/#/', color:'#43A047', icon:'🍃' },
-    { id:'ch3', no:'第 3 章', title:'生物體內的運輸', units:'3-1 植物的運輸構造・3-2 人體的循環・3-3 人體的防禦', url:'https://batyunching.github.io/bio-ch3/', color:'#E53935', icon:'🩸' }
+    { id:'ch3', no:'第 3 章', title:'生物體內的運輸', units:'3-1 植物的運輸構造・3-2 人體的循環・3-3 人體的防禦', url:'https://batyunching.github.io/bio-ch3/', color:'#E53935', icon:'🩸' },
+    { id:'ch4', no:'第 4 章', title:'生物體的協調作用', units:'4-1 神經系統・4-2 內分泌系統・4-3 植物的感應', url:'https://batyunching.github.io/bio-ch4/', color:'#0891B2', icon:'⚡' }
   ]
 };
 if(!firebase.apps.length) firebase.initializeApp(PORTAL_CFG.CONFIG);
