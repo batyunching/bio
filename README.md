@@ -70,3 +70,12 @@
   `<script src="https://batyunching.github.io/bio/js/account.js" data-chapter="ch4" data-prefix="該章 localStorage 名稱開頭"></script>`，
   再到 `js/portal-common.js` 的 `CHAPTERS` 加一筆。
 - **安全性**：前端看得到 `apiKey` 是正常的，它不是密碼；資料安全靠資料庫規則保護。帳號只用「班級-座號」，不存學生真實姓名。
+
+## 老師註冊（審核制）
+
+1. 老師在總入口 → 老師登入 →「📝 老師註冊」填稱呼和電子郵件，送出申請。
+2. 管理人在老師工具 ⑤「老師註冊申請」按「✔ 通過」，系統自動寄「設定密碼」信給對方。
+3. 對方點信中連結設定密碼後，用「老師登入」即可使用老師工具。
+4. 忘記密碼：老師登入頁按「忘記密碼？」，一樣會收到設定密碼的信。
+
+信件內容可在 Firebase 主控台 → Authentication → 範本（Templates）→ 密碼重設，把語言改成「中文（台灣）」並修改文字。

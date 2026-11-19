@@ -28,6 +28,7 @@
   .chap .go{ margin-top:auto; font-weight:900; color:var(--cc); }
   .soon{ opacity:.6; border-top-color:#B0BEC5; }
   .hide{ display:none !important; }
+  #segWho button[aria-pressed="true"]{ background:#263238; color:#fff; }
   .loading{ text-align:center; padding:60px; color:var(--c-muted); }
 </style>
 </head>
@@ -61,8 +62,19 @@
         <label for="tEmail">電子郵件</label><input id="tEmail" type="email" autocomplete="username" required>
         <label for="tPw">密碼</label><input id="tPw" type="password" autocomplete="current-password" required>
         <div class="err" id="tErr"></div>
+        <div id="resetNote" class="hide" role="status" style="background:#e8f5e9;border:2px solid #43a047;border-radius:12px;padding:10px 12px;margin:8px 0;font-size:.95rem;line-height:1.6"></div>
         <button class="btn" style="width:100%;font-size:1.15rem" type="submit">老師登入 ▶</button>
-        <p style="text-align:right;margin-bottom:0"><button type="button" class="btn ghost" id="forgotBtn" style="min-height:40px;padding:4px 14px;font-size:.9rem">忘記密碼？</button></p>
+        <p style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:0;flex-wrap:wrap"><span><span class="mut" style="font-size:.9rem">還沒有帳號？</span><button type="button" class="btn ghost" id="regOpen" style="min-height:40px;padding:4px 14px;font-size:.9rem">📝 老師註冊</button></span><button type="button" class="btn ghost" id="forgotBtn" style="min-height:40px;padding:4px 14px;font-size:.9rem">忘記密碼？</button></p>
+      </form>
+      <form id="regForm" class="hide">
+        <h3 style="margin:4px 0 6px">📝 老師註冊申請</h3>
+        <p class="mut" style="margin-top:0;font-size:.9rem">填好送出後，等管理人審核。通過後會收到一封「設定密碼」的信，點信裡的連結設定自己的密碼，就能登入。</p>
+        <label for="rName">您的稱呼</label><input id="rName" autocomplete="name" placeholder="例如 黃老師" required>
+        <label for="rEmail">電子郵件</label><input id="rEmail" type="email" autocomplete="email" placeholder="建議用學校信箱" required>
+        <div class="err" id="rErr"></div>
+        <div id="regNote" class="hide" role="status" style="background:#e8f5e9;border:2px solid #43a047;border-radius:12px;padding:10px 12px;margin:8px 0;font-size:.95rem;line-height:1.6"></div>
+        <button class="btn" id="regBtn" style="width:100%;font-size:1.15rem" type="submit">送出申請 ▶</button>
+        <p style="margin-bottom:0"><button type="button" class="btn ghost" id="regBack" style="min-height:40px;padding:4px 14px;font-size:.9rem">⇦ 回到老師登入</button></p>
       </form>
     </div>
   </section>
@@ -91,6 +103,7 @@
       document.querySelectorAll('#segWho button').forEach(function(x){ x.setAttribute('aria-pressed', x === b); });
       $('stuForm').classList.toggle('hide', b.getAttribute('data-v') !== 'stu');
       $('teaForm').classList.toggle('hide', b.getAttribute('data-v') !== 'tea');
+      $('regForm').classList.add('hide');
     });
   });
   try{ var last = localStorage.getItem('bio_lastClass'); if(last) $('cls').value = last; }catch(e){}
@@ -105,16 +118,80 @@
   });
   $('teaForm').addEventListener('submit', function(e){
     e.preventDefault(); $('tErr').textContent = '';
-    auth.signInWithEmailAndPassword($('tEmail').value.trim(), $('tPw').value).catch(function(er){ $('tErr').textContent = authMsg(er); });
+    auth.signInWithEmailAndPassword($('tEmail').value.trim(), $('tPw').value).catch(function(er){
+      $('tErr').textContent = /invalid-credential|wrong-password|user-not-found|invalid-login|invalid-email/.test(er.code || '') ? '電子郵件或密碼不對。不確定密碼的話，按下面的「忘記密碼？」重設。' : authMsg(er);
+    });
   });
+  // 忘記密碼：寄出後顯示明顯提醒、按鈕倒數，短時間內重按會先確認
+  var RESET_KEY = 'bio_resetSent', COOL = 60;
+  function readReset(){ try{ return JSON.parse(localStorage.getItem(RESET_KEY) || 'null'); }catch(e){ return null; } }
+  function hhmm(t){ var d = new Date(t); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  function showResetNote(r){
+    var min = Math.max(0, Math.round((Date.now() - r.t) / 60000));
+    $('resetNote').innerHTML = '✅ <b>重設密碼的信已經寄出</b>（' + hhmm(r.t) + '，' + (min ? min + ' 分鐘前' : '剛剛') + '）<br>收件信箱：' + esc(r.em) +
+      '<br>請到信箱找寄件人 <b>noreply@bio-ch2-bingo.firebaseapp.com</b> 的信，<b>也看看垃圾郵件</b>。<br>不用再按「忘記密碼？」；寄了好幾封的話，<b>用最新的那一封</b>。';
+    $('resetNote').classList.remove('hide');
+  }
+  var coolTimer = null;
+  function startCool(r){
+    var b = $('forgotBtn'); clearInterval(coolTimer);
+    function tick(){
+      var left = COOL - Math.floor((Date.now() - r.t) / 1000);
+      if(left > 0){ b.disabled = true; b.textContent = '✅ 已寄出（' + left + ' 秒後可再寄）'; }
+      else { clearInterval(coolTimer); b.disabled = false; b.textContent = '忘記密碼？'; }
+    }
+    tick(); coolTimer = setInterval(tick, 1000);
+  }
+  (function(){ var r = readReset(); if(r && Date.now() - r.t < 30 * 60000){ if(!$('tEmail').value) $('tEmail').value = r.em; showResetNote(r); startCool(r); } })();
   $('forgotBtn').addEventListener('click', function(){
-    var em = $('tEmail').value.trim();
+    var em = $('tEmail').value.trim(); $('tErr').textContent = '';
     if(!em){ $('tErr').textContent = '請先在上面填入你的電子郵件，再按「忘記密碼？」。'; return; }
     if(sidFromEmail(em)){ $('tErr').textContent = '學生帳號沒有電子信箱，忘記密碼請找老師。'; return; }
+    var r = readReset();
+    if(r && r.em.toLowerCase() === em.toLowerCase() && Date.now() - r.t < 30 * 60000){
+      var min = Math.max(1, Math.round((Date.now() - r.t) / 60000));
+      if(!confirm('你在 ' + hhmm(r.t) + '（約 ' + min + ' 分鐘前）已經寄過重設密碼的信到\n' + em + '\n\n請先到信箱（含垃圾郵件）找找看。\n確定還要再寄一封嗎？')) { showResetNote(r); return; }
+    }
+    var b = $('forgotBtn'); b.disabled = true; b.textContent = '寄信中…';
     auth.sendPasswordResetEmail(em).then(function(){
-      $('tErr').innerHTML = '<span style="color:var(--c-ok)">已寄出重設密碼的信到 ' + esc(em) + '，請到信箱收信（也看看垃圾郵件）。</span>';
-    }, function(er){ $('tErr').textContent = authMsg(er); });
+      var nr = { em: em, t: Date.now() };
+      try{ localStorage.setItem(RESET_KEY, JSON.stringify(nr)); }catch(e){}
+      showResetNote(nr); startCool(nr);
+    }, function(er){
+      b.disabled = false; b.textContent = '忘記密碼？';
+      $('tErr').textContent = /too-many-requests/.test(er.code || '') ? '這個信箱短時間內寄太多次了。請先到信箱（含垃圾郵件）找之前寄的信，或過一段時間再試。' : authMsg(er);
+    });
   });
+  // 老師註冊：用隨機密碼建立帳號（本人不知道），送出申請；管理人通過後寄「設定密碼」信
+  $('regOpen').addEventListener('click', function(){ $('teaForm').classList.add('hide'); $('regForm').classList.remove('hide'); if(!$('rEmail').value) $('rEmail').value = $('tEmail').value; });
+  $('regBack').addEventListener('click', function(){ $('regForm').classList.add('hide'); $('teaForm').classList.remove('hide'); });
+  var regApp = null;
+  $('regForm').addEventListener('submit', function(e){
+    e.preventDefault(); $('rErr').textContent = '';
+    var nm = $('rName').value.trim(), em = $('rEmail').value.trim().toLowerCase();
+    if(!nm){ $('rErr').textContent = '請填寫稱呼。'; return; }
+    if(sidFromEmail(em) || /@student\.bio$/.test(em)){ $('rErr').textContent = '學生不用註冊，請用老師發的班級座號登入。'; return; }
+    var b = $('regBtn'); b.disabled = true; b.textContent = '送出中…';
+    var a = new Uint32Array(6); crypto.getRandomValues(a);
+    var pw = Array.prototype.map.call(a, function(x){ return x.toString(36); }).join('') + 'Aa1!';
+    (regApp ? Promise.resolve(regApp) : (function(){ regApp = firebase.initializeApp(PORTAL_CFG.CONFIG, 'register'); return regApp.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).then(function(){ return regApp; }); })())
+      .then(function(app){
+        return app.auth().createUserWithEmailAndPassword(em, pw).then(function(cr){
+          var u = cr.user;
+          return app.database().ref('applications/' + u.uid).set({ name:nm, email:u.email, status:'pending', at:firebase.database.ServerValue.TIMESTAMP })
+            .then(function(){ return app.auth().signOut(); });
+        });
+      }).then(function(){
+        $('regNote').innerHTML = '✅ <b>申請已送出</b><br>' + esc(nm) + '（' + esc(em) + '）<br>管理人審核通過後，會寄一封「設定密碼」的信給你（寄件人 noreply@bio-ch2-bingo.firebaseapp.com，也看看垃圾郵件）。點信裡的連結設定密碼後，就能用「老師登入」。';
+        $('regNote').classList.remove('hide'); b.textContent = '✅ 已送出';
+      }, function(er){
+        b.disabled = false; b.textContent = '送出申請 ▶';
+        var c = (er && er.code) || '';
+        $('rErr').textContent = /email-already-in-use/.test(c) ? '這個電子郵件已經註冊過了。還在審核中的話請等管理人通知；已經通過的話，請回老師登入按「忘記密碼？」設定密碼。'
+          : /invalid-email/.test(c) ? '電子郵件格式不對，請再確認一次。' : authMsg(er);
+      });
+  });
+
   $('outBtn').addEventListener('click', function(){
     if(!confirm('確定要登出嗎？')) return;
     auth.signOut().then(function(){ location.href = location.pathname; });
@@ -142,6 +219,11 @@
     $('pwBtn').classList.remove('hide');
     $('teacherBtn').classList.toggle('hide', !teacher);
     $('homeBox').classList.remove('hide'); $('loginBox').classList.add('hide');
+    if(!sid && !teacher) db.ref('applications/' + u.uid + '/status').get().then(function(s){
+      var st = s.val(); if(!st) return;
+      var msg = st === 'pending' ? '你的老師註冊申請還在審核中，通過後就能使用老師工具。' : st === 'rejected' ? '你的老師註冊申請沒有通過，有問題請洽管理人。' : '';
+      if(msg) $('hello').insertAdjacentHTML('afterend', '<p style="margin:6px 0 0;font-weight:700">' + msg + '</p>');
+    }).catch(function(){});
   }
   auth.onAuthStateChanged(function(u){
     $('loading').classList.add('hide');

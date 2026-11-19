@@ -108,6 +108,10 @@
 
     <section class="card admin-card hide" id="adminBox">
       <h2>⑤ 管理人專區</h2>
+      <h3 style="margin-bottom:4px">老師註冊申請 <span id="appBadge"></span></h3>
+      <p class="mut" style="margin-top:0">老師在總入口按「📝 老師註冊」送出申請。按「✔ 通過」後，系統會自動寄一封「設定密碼」的信給他。</p>
+      <div id="aApps"></div>
+      <hr style="margin:20px 0;border:none;border-top:1px solid var(--c-line)">
       <h3 style="margin-bottom:4px">設定老師任教班級</h3>
       <p class="mut" style="margin-top:0">先選老師，再勾他任教的班級，按「儲存」。一個班只能有一位負責老師；勾了別人的班，會改成這位老師負責。班級還沒建帳號也可以先設定，之後由該老師在 ① 建立。</p>
       <div class="form">
@@ -124,6 +128,8 @@
       <p class="mut" style="margin-top:0">老師要先登入老師工具一次，才會出現在這裡。</p>
       <div id="aTeachers"></div>
       <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">➕ 怎麼新增一位老師？</summary>
+        <p><b>最簡單：</b>請老師到總入口 → 老師登入 →「📝 老師註冊」送出申請，你在上面「老師註冊申請」按「✔ 通過」即可。</p>
+        <p>也可以在 Firebase 主控台手動新增：</p>
         <ol>
           <li>Firebase 主控台 → Authentication → 使用者 → 新增使用者（填老師的電子郵件和暫時密碼）。</li>
           <li>複製他的「使用者 UID」。</li>
@@ -158,6 +164,11 @@
           '<p>請管理人到 <b>Firebase 主控台 → Realtime Database → 資料</b>，在 <code>teachers</code> 底下新增：</p>' +
           '<p><code>' + esc(u.uid) + '</code> ＝ <code>true</code>（布林值，不要加引號）</p>' +
           '<p>加好後重新整理這一頁。</p><p class="mut">你的 UID：<code>' + esc(u.uid) + '</code></p>';
+        db.ref('applications/' + u.uid + '/status').get().then(function(s){
+          var st = s.val(); if(!st) return;
+          $('gate').innerHTML = st === 'pending' ? '<h2>⏳ 註冊申請審核中</h2><p>你（' + esc(u.email) + '）的老師註冊申請已送出，管理人通過後就能使用老師工具。</p>'
+            : st === 'rejected' ? '<h2>註冊申請沒有通過</h2><p>有問題請洽管理人。</p>' : $('gate').innerHTML;
+        }).catch(function(){});
         return;
       }
       $('gate').classList.add('hide'); $('tools').classList.remove('hide');
@@ -446,7 +457,46 @@
       return '<tr><td>' + esc(teachersInfo[t].name || '（未填）') + '</td><td>' + esc(teachersInfo[t].email || '') + '</td><td>' + (mine.map(esc).join('、') || '—') + '</td><td>' + fmtTime(teachersInfo[t].lastLogin) + '</td></tr>';
     }).join('') + '</table>' : '<p class="mut">還沒有老師登入過老師工具。</p>';
     renderTSel();
+    renderApps();
   }
+  var apps = {};
+  function renderApps(){
+    db.ref('applications').get().then(function(s){
+      apps = s.val() || {};
+      var ids = Object.keys(apps).sort(function(a, b){ return (apps[b].at || 0) - (apps[a].at || 0); });
+      var pend = ids.filter(function(i){ return apps[i].status === 'pending'; }), done = ids.filter(function(i){ return apps[i].status !== 'pending'; });
+      $('appBadge').innerHTML = pend.length ? '<span class="role" style="background:#E53935;color:#fff">' + pend.length + ' 件待審</span>' : '';
+      var row = function(i){ var a = apps[i];
+        var st = a.status === 'pending' ? '<span class="ng">待審核</span>' : a.status === 'approved' ? '<span class="ok">已通過</span>' : '<span class="mut">未通過</span>';
+        var ops = a.status === 'pending' ? '<button class="btn" data-app="ok" data-id="' + esc(i) + '">✔ 通過</button> <button class="btn ghost" data-app="no" data-id="' + esc(i) + '">✘ 不通過</button>'
+          : a.status === 'approved' ? '<button class="btn ghost" data-app="mail" data-id="' + esc(i) + '">📧 重寄設定密碼信</button>'
+          : '<button class="btn ghost" data-app="ok" data-id="' + esc(i) + '">改成通過</button>';
+        return '<tr><td>' + esc(a.name || '') + '</td><td>' + esc(a.email || '') + '</td><td>' + fmtTime(a.at) + '</td><td>' + st + '</td><td>' + ops + '</td></tr>'; };
+      var head = '<table class="list"><tr><th>稱呼</th><th>電子郵件</th><th>申請時間</th><th>狀態</th><th></th></tr>';
+      $('aApps').innerHTML = (pend.length ? head + pend.map(row).join('') + '</table>' : '<p class="mut">目前沒有待審核的申請。</p>') +
+        (done.length ? '<details style="margin-top:8px"><summary style="cursor:pointer">已處理的申請（' + done.length + '）</summary>' + head + done.map(row).join('') + '</table></details>' : '');
+    }).catch(function(e){ $('aApps').innerHTML = '<p class="ng">讀取申請失敗：' + esc(authMsg(e)) + '（請確認 Firebase 規則已更新）</p>'; });
+  }
+  $('aApps').addEventListener('click', function(e){
+    var b = e.target.closest('[data-app]'); if(!b) return;
+    var id = b.getAttribute('data-id'), act = b.getAttribute('data-app'), a = apps[id]; if(!a) return;
+    function mail(){ return auth.sendPasswordResetEmail(a.email); }
+    if(act === 'ok'){
+      if(!confirm('通過「' + (a.name || '') + '」（' + a.email + '）的老師註冊？\n通過後會自動寄「設定密碼」的信給他。')) return;
+      b.disabled = true;
+      Promise.all([ db.ref('teachers/' + id).set(true), db.ref('teacherInfo/' + id).update({ name:a.name || '', email:a.email }) ])
+        .then(function(){ return db.ref('applications/' + id).update({ status:'approved', doneAt:firebase.database.ServerValue.TIMESTAMP }); })
+        .then(mail).then(function(){ alert('已通過，並寄出設定密碼的信到 ' + a.email + '。\n請對方收信（也看看垃圾郵件），設定好密碼後就能用「老師登入」。'); },
+          function(er){ alert('處理失敗：' + authMsg(er)); })
+        .then(reload);
+    } else if(act === 'no'){
+      if(!confirm('確定不通過「' + (a.name || '') + '」（' + a.email + '）？')) return;
+      db.ref('applications/' + id).update({ status:'rejected', doneAt:firebase.database.ServerValue.TIMESTAMP }).then(renderApps, function(er){ alert(authMsg(er)); });
+    } else if(act === 'mail'){
+      b.disabled = true;
+      mail().then(function(){ alert('已重寄設定密碼的信到 ' + a.email + '。'); }, function(er){ alert(authMsg(er)); b.disabled = false; });
+    }
+  });
   /* 依老師設定任教班級 */
   var extraCls = {};
   function allClassKeys(){ var o = {}; Object.keys(scope).forEach(function(c){ o[c] = 1; }); Object.keys(extraCls).forEach(function(c){ o[c] = 1; }); return Object.keys(o).sort(); }
