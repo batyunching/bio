@@ -71,6 +71,18 @@
     </section>
 
     <section class="card">
+      <h2>①-2 匯入全校名單，一次建立帳號</h2>
+      <p class="mut" style="margin-top:0">選 CSV 檔（要有「班級」「座號」「姓名」三欄，Excel 存成 CSV 即可）。檔案只在你的瀏覽器裡讀取，<b>只會把勾選班級的資料建成帳號</b>；姓名存在雲端，只有該班老師和管理人看得到。</p>
+      <div class="form">
+        <div><label for="iFile">名單檔（.csv）</label><input type="file" id="iFile" accept=".csv,text/csv"></div>
+        <div><label for="iPre">密碼規則：前綴＋班級＋座號</label><span><input type="text" id="iPre" value="bio" style="width:90px"> <span class="mut" id="iPwEx">例：701 班 5 號 → bio70105</span></span></div>
+      </div>
+      <div id="iPrev" style="margin-top:10px"></div>
+      <div class="ops hide" id="iOps" style="margin-top:12px"><button class="btn" id="iBtn">📥 建立勾選班級的帳號</button><button class="btn ghost hide" id="iStop">⏹ 停止</button></div>
+      <div class="log" id="iLog" style="display:none;max-height:240px"></div>
+    </section>
+
+    <section class="card">
       <h2>② 帳號清單與列印帳號條</h2>
       <div class="form">
         <div><label for="lCls">班級</label><select id="lCls"></select></div>
@@ -251,28 +263,140 @@
       .then(function(){ if(scope[cls]){ $('lCls').value = cls; $('pCls').value = cls; } });
   });
 
+  /* ---------- ①-2 匯入名單 ---------- */
+  var roster = {}; // cls → [{seat,name}]
+  var CN = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+  function numOf(x){ x = String(x || '').trim(); if(/^\d+$/.test(x)) return parseInt(x, 10);
+    if(/^十?[一二三四五六七八九]?$/.test(x) && x){ return x.length === 2 ? 10 + CN[x[1]] : (x === '十' ? 10 : CN[x]); } return NaN; }
+  function clsFrom(v){
+    v = String(v || '').trim().replace(/\s/g, '');
+    var m = v.match(/^(\d|[一二三四五六七八九])年(?:級)?(\d+|[一二三四五六七八九十]+)班$/);
+    if(m){ var g = numOf(m[1]), n = numOf(m[2]); if(g && n) return String(g) + pad2(n); }
+    m = v.match(/^(\d{3,4})班?$/); if(m) return m[1];
+    var c = normClass(v); return validClass(c) ? c : '';
+  }
+  function parseCSV(t){
+    var rows = [], row = [], f = '', q = false;
+    for(var i = 0; i < t.length; i++){
+      var ch = t[i];
+      if(q){ if(ch === '"'){ if(t[i+1] === '"'){ f += '"'; i++; } else q = false; } else f += ch; }
+      else if(ch === '"') q = true;
+      else if(ch === ',' || ch === '\t'){ row.push(f); f = ''; }
+      else if(ch === '\n' || ch === '\r'){ if(ch === '\r' && t[i+1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+      else f += ch;
+    }
+    if(f || row.length){ row.push(f); rows.push(row); }
+    return rows.filter(function(r){ return r.some(function(x){ return String(x).trim(); }); });
+  }
+  function decode(buf){
+    var u = new TextDecoder('utf-8').decode(buf);
+    if(u.indexOf('�') < 0) return u.replace(/^﻿/, '');
+    try{ return new TextDecoder('big5').decode(buf); }catch(e){ return u; }
+  }
+  function pwOf(cls, seat){ return $('iPre').value.trim() + cls + pad2(seat); }
+  $('iPre').addEventListener('input', function(){ $('iPwEx').textContent = '例：701 班 5 號 → ' + pwOf('701', 5) + (pwOf('701',5).length < 6 ? '（太短，至少 6 個字元）' : ''); });
+  $('iFile').addEventListener('change', function(){
+    var f = this.files[0]; if(!f) return;
+    f.arrayBuffer().then(function(buf){
+      var rows = parseCSV(decode(buf)); roster = {};
+      var hi = -1, ci = -1, si = -1, ni = -1;
+      for(var r = 0; r < Math.min(rows.length, 10) && hi < 0; r++){
+        rows[r].forEach(function(h, k){ h = String(h).replace(/\s/g, '');
+          if(ci < 0 && /班級|^班$|班別/.test(h)) ci = k;
+          else if(si < 0 && /座號|^號$|座次/.test(h)) si = k;
+          else if(ni < 0 && /姓名|^名字$|學生姓名/.test(h)) ni = k; });
+        if(ci >= 0 && si >= 0 && ni >= 0) hi = r; else { ci = si = ni = -1; }
+      }
+      if(hi < 0){ $('iPrev').innerHTML = '<p class="ng">找不到「班級」「座號」「姓名」這三個欄位標題，請確認 CSV 第一列是欄位名稱。</p>'; $('iOps').classList.add('hide'); return; }
+      var bad = 0;
+      rows.slice(hi + 1).forEach(function(r){
+        var c = clsFrom(r[ci]), n = numOf(r[si]), nm = String(r[ni] || '').trim();
+        if(!c || !(n > 0 && n < 100)){ bad++; return; }
+        (roster[c] = roster[c] || []).push({ seat:n, name:nm });
+      });
+      var keys = Object.keys(roster).sort();
+      var grades = {}; keys.forEach(function(c){ grades[c[0]] = true; });
+      $('iPrev').innerHTML = '<p>讀到 <b>' + keys.length + '</b> 個班、<b>' + keys.reduce(function(a, c){ return a + roster[c].length; }, 0) + '</b> 位學生' + (bad ? '（' + bad + ' 列看不懂，已略過）' : '') + '。勾選要建立帳號的班級：</p>' +
+        '<p>' + Object.keys(grades).sort().map(function(g){ return '<button type="button" class="btn ghost" data-grade="' + esc(g) + '">全選 ' + esc(g) + ' 開頭的班</button> '; }).join('') + '<button type="button" class="btn ghost" data-grade="">全部取消</button></p>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px 14px">' + keys.map(function(c){
+          var have = scope[c] ? Object.keys(scope[c].students).length : 0;
+          return '<label style="font-weight:400"><input type="checkbox" data-icls="' + esc(c) + '"> ' + esc(c) + ' 班（' + roster[c].length + ' 人' + (have ? '，已建 ' + have : '') + '）</label>';
+        }).join('') + '</div>' +
+        '<p class="mut">範例：' + esc(keys[0]) + ' 班 ' + roster[keys[0]][0].seat + ' 號 ' + esc(roster[keys[0]][0].name) + ' → 密碼 ' + esc(pwOf(keys[0], roster[keys[0]][0].seat)) + '</p>';
+      $('iOps').classList.remove('hide');
+    });
+  });
+  $('iPrev').addEventListener('click', function(e){
+    var b = e.target.closest('[data-grade]'); if(!b) return; var g = b.getAttribute('data-grade');
+    $('iPrev').querySelectorAll('[data-icls]').forEach(function(x){ x.checked = !!g && x.getAttribute('data-icls').indexOf(g) === 0; });
+  });
+  function ilog(t){ var l = $('iLog'); l.style.display = ''; l.insertAdjacentHTML('beforeend', '<div>' + t + '</div>'); l.scrollTop = l.scrollHeight; }
+  $('iStop').addEventListener('click', function(){ stopFlag = true; });
+  $('iBtn').addEventListener('click', function(){
+    var picked = Array.prototype.map.call($('iPrev').querySelectorAll('[data-icls]:checked'), function(x){ return x.getAttribute('data-icls'); });
+    if(!picked.length){ alert('請先勾選班級。'); return; }
+    if(pwOf('701', 5).length < 6){ alert('密碼太短，請把前綴加長（密碼至少 6 個字元）。'); return; }
+    var todo = [], skipN = 0, nameFix = [];
+    picked.forEach(function(c){ roster[c].forEach(function(st){
+      var sid = sidOf(c, st.seat), ex = scope[c] && scope[c].students[sid];
+      if(ex){ skipN++; if(st.name && ((ex.profile || {}).name || '') !== st.name) nameFix.push({ c:c, st:st }); }
+      else todo.push({ c:c, st:st });
+    }); });
+    if(!confirm('要新建 ' + todo.length + ' 個帳號嗎？\n（已經有帳號的 ' + skipN + ' 位會略過' + (nameFix.length ? '，其中 ' + nameFix.length + ' 位' + (roles.admin ? '會補上姓名' : '的姓名要請管理人補') : '') + '）\n\n提醒：Firebase 每小時大約只能新建 100 個帳號，超過會自動停下，1 小時後再按一次就會接著建。')) return;
+    stopFlag = false; $('iBtn').disabled = true; $('iStop').classList.remove('hide'); $('iLog').innerHTML = '';
+    var made = 0, claimed = {}, blocked = {};
+    var p = Promise.resolve();
+    if(roles.admin && nameFix.length) p = p.then(function(){ return Promise.all(nameFix.map(function(x){ return db.ref('students/' + sidOf(x.c, x.st.seat) + '/profile/name').set(x.st.name).catch(function(){}); })); }).then(function(){ ilog('已補上 ' + nameFix.length + ' 位的姓名。'); });
+    p.then(getCreator).then(function(app){
+      var ca = app.auth(), cdb = app.database();
+      return todo.reduce(function(pp, it){
+        return pp.then(function(){
+          if(stopFlag || blocked[it.c]) return;
+          var c = it.c, seat = it.st.seat, sid = sidOf(c, seat), pw = pwOf(c, seat);
+          return (claimed[c] ? Promise.resolve() : claimClass(c).then(function(){ claimed[c] = true; }, function(e){ blocked[c] = true; ilog('<span class="ng">✘ ' + esc(e.message || e) + '</span>'); throw 'skip'; }))
+            .then(function(){ return ca.createUserWithEmailAndPassword(emailOf(sid), pw); })
+            .then(function(){
+              return cdb.ref('students/' + sid + '/profile').set({ cls:c, seat:seat, name:it.st.name, initPw:pw, pwChanged:false, createdAt:firebase.database.ServerValue.TIMESTAMP });
+            }).then(function(){ made++; ilog('<span class="ok">✔ ' + c + ' 班 ' + seat + ' 號 ' + esc(it.st.name) + '</span>'); return ca.signOut(); },
+              function(e){
+                if(e === 'skip') throw e;
+                if(/email-already-in-use/.test(e.code || '')){ ilog('<span class="mut">・' + c + ' 班 ' + seat + ' 號：帳號已存在，已加入班級名單</span>'); return; }
+                ilog('<span class="ng">✘ ' + c + ' 班 ' + seat + ' 號：' + esc(authMsg(e)) + '</span>');
+                if(/too-many-requests/.test(e.code || '')){ stopFlag = true; ilog('<b>Firebase 限制短時間內建立太多帳號，已自動停下。請 1 小時後重新整理此頁，再選一次名單檔、勾同樣的班，按建立，會從沒建好的繼續。</b>'); }
+                return ca.signOut().catch(function(){}).then(function(){ throw 'skip'; });
+              })
+            .then(function(){ return db.ref('classes/' + c + '/seats/' + seat).set(true); })
+            .catch(function(e){ if(e !== 'skip') ilog('<span class="ng">✘ ' + c + ' 班 ' + seat + ' 號：' + esc(authMsg(e)) + '</span>'); })
+            .then(function(){ return sleep(350); });
+        });
+      }, Promise.resolve());
+    }).then(function(){ ilog('<b>' + (stopFlag ? '已停止' : '完成') + '：新建立 ' + made + ' 個帳號。</b>到 ② 選班級，可以列印帳號小紙條（含姓名）。'); })
+      .catch(function(e){ ilog('<span class="ng">' + esc(e && e.code ? authMsg(e) : (e && e.message) || e) + '</span>'); })
+      .then(function(){ $('iBtn').disabled = false; $('iStop').classList.add('hide'); return reload(); });
+  });
+
   /* ---------- ② 清單／列印 ---------- */
   function classRows(cls){
     var c = scope[cls]; if(!c) return [];
     return Object.keys(c.students).sort().map(function(sid){
       var p = (c.students[sid] || {}).profile || {};
-      return { sid:sid, seat:parseInt(sid.split('-')[1], 10), pw: p.pwChanged ? '（已自行修改）' : (p.initPw || '（未記錄）') };
+      return { sid:sid, name:p.name || '', seat:parseInt(sid.split('-')[1], 10), pw: p.pwChanged ? '（已自行修改）' : (p.initPw || '（未記錄）') };
     });
   }
   $('lLoad').addEventListener('click', function(){
     var cls = $('lCls').value, rows = classRows(cls);
-    $('lOut').innerHTML = rows.length ? '<table class="list"><tr><th>班級</th><th>座號</th><th>登入時輸入</th><th>密碼</th></tr>' + rows.map(function(r){ return '<tr><td>'+esc(cls)+'</td><td>'+r.seat+'</td><td>班級 '+esc(cls)+'・座號 '+r.seat+'</td><td>'+esc(r.pw)+'</td></tr>'; }).join('') + '</table>' : '<p class="mut">這個班還沒有帳號。</p>';
+    $('lOut').innerHTML = rows.length ? '<table class="list"><tr><th>班級</th><th>座號</th><th>姓名</th><th>登入時輸入</th><th>密碼</th></tr>' + rows.map(function(r){ return '<tr><td>'+esc(cls)+'</td><td>'+r.seat+'</td><td>'+esc(r.name)+'</td><td>班級 '+esc(cls)+'・座號 '+r.seat+'</td><td>'+esc(r.pw)+'</td></tr>'; }).join('') + '</table>' : '<p class="mut">這個班還沒有帳號。</p>';
   });
   $('lCopy').addEventListener('click', function(){
     var cls = $('lCls').value, rows = classRows(cls);
-    var txt = '班級\t座號\t密碼\n' + rows.map(function(r){ return cls + '\t' + r.seat + '\t' + r.pw; }).join('\n');
+    var txt = '班級\t座號\t姓名\t密碼\n' + rows.map(function(r){ return cls + '\t' + r.seat + '\t' + r.name + '\t' + r.pw; }).join('\n');
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function(){ alert('已複製，可以直接貼到 Excel 或 Google 試算表。'); }, function(){ prompt('請全選複製：', txt); });
   });
   $('lPrint').addEventListener('click', function(){
     var cls = $('lCls').value, rows = classRows(cls);
     if(!rows.length){ alert('這個班還沒有帳號。'); return; }
     $('printArea').innerHTML = rows.map(function(r){
-      return '<div class="slip">🧬 <b>生物學習網站</b><br>網址：batyunching.github.io/bio/<br>班級：<b>' + esc(cls) + '</b>　座號：<b>' + r.seat + '</b><br>密碼：<b>' + esc(r.pw) + '</b><br><span style="font-size:10pt">請保管好密碼，用完共用平板記得登出。</span></div>';
+      return '<div class="slip">🧬 <b>生物學習網站</b><br>網址：batyunching.github.io/bio/<br>班級：<b>' + esc(cls) + '</b>　座號：<b>' + r.seat + '</b>' + (r.name ? '　<b>' + esc(r.name) + '</b>' : '') + '<br>密碼：<b>' + esc(r.pw) + '</b><br><span style="font-size:10pt">請保管好密碼，用完共用平板記得登出。</span></div>';
     }).join('');
     window.print();
   });
@@ -289,12 +413,12 @@
         var s = c.students[sid] || {}, d3 = (s.data || {}).ch3 || {}, d2 = (s.data || {}).ch2 || {}, seen = s.lastSeen || {};
         var und = parse(d3['ch3%2Eunderstood'], []), wb = parse(d3['ch3%2Ewrongbook'], []), bd = parse(d3['ch3%2Ebadges'], {}), lab = parse(d3['ch3%2ElabDone'], {}), qh = parse(d3['ch3%2EquizHistory'], []);
         var lastQ = qh.length ? qh[qh.length-1] : null;
-        return '<tr><td>' + parseInt(sid.split('-')[1], 10) + '</td>' +
+        return '<tr><td>' + parseInt(sid.split('-')[1], 10) + '</td><td>' + esc((s.profile || {}).name || '') + '</td>' +
           '<td>' + fmtTime(seen.ch2) + '</td><td>' + Object.keys(d2).length + '</td>' +
           '<td>' + fmtTime(seen.ch3) + '</td><td>' + und.length + ' / 15</td><td>' + Object.keys(lab).length + ' / 3</td>' +
           '<td>' + (lastQ ? lastQ.right + ' / ' + lastQ.total : '—') + '</td><td>' + wb.length + '</td><td>' + Object.keys(bd).map(function(k){ return {plumber:'🔧',courier:'🏅',immune:'🛡️',bingo:'🎯'}[k] || ''; }).join('') + '</td></tr>';
       }).join('');
-      $('pOut').innerHTML = '<table class="list"><tr><th rowspan="2">座號</th><th colspan="2">第 2 章</th><th colspan="6">第 3 章</th></tr>' +
+      $('pOut').innerHTML = '<table class="list"><tr><th rowspan="2">座號</th><th rowspan="2">姓名</th><th colspan="2">第 2 章</th><th colspan="6">第 3 章</th></tr>' +
         '<tr><th>最近使用</th><th>紀錄筆數</th><th>最近使用</th><th>概念卡</th><th>實驗</th><th>最近一次練習</th><th>錯題本</th><th>徽章</th></tr>' + rows + '</table>' +
         '<p class="mut">「最近使用」是學生最後一次打開該章網站的時間。</p>';
     });
