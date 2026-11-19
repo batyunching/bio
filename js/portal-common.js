@@ -18,6 +18,7 @@ var PORTAL_CFG = {
 };
 if(!firebase.apps.length) firebase.initializeApp(PORTAL_CFG.CONFIG);
 var auth = firebase.auth(), db = firebase.database();
+try{ auth.languageCode = 'zh-TW'; }catch(e){} // 設定密碼信與設定密碼頁面改用繁體中文
 
 function normClass(s){ return String(s || '').trim().toLowerCase().replace(/\s+/g, ''); }
 function pad2(n){ n = String(parseInt(n, 10)); return n.length < 2 ? '0' + n : n; }
