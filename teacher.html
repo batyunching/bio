@@ -108,6 +108,15 @@
 
     <section class="card admin-card hide" id="adminBox">
       <h2>⑤ 管理人專區</h2>
+      <h3 style="margin-bottom:4px">設定老師任教班級</h3>
+      <p class="mut" style="margin-top:0">先選老師，再勾他任教的班級，按「儲存」。一個班只能有一位負責老師；勾了別人的班，會改成這位老師負責。班級還沒建帳號也可以先設定，之後由該老師在 ① 建立。</p>
+      <div class="form">
+        <div><label for="tTeacher">老師</label><select id="tTeacher" style="min-width:220px"></select></div>
+        <div><label for="tAdd">新增班級（可用範圍）</label><span><input type="text" id="tAdd" placeholder="例如 701-712, 801" style="width:200px"> <button type="button" class="btn ghost" id="tAddBtn">➕ 加入</button></span></div>
+      </div>
+      <div id="tGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
+      <div class="ops" style="margin-top:12px"><button class="btn" id="tSave">💾 儲存這位老師的任教班級</button></div>
+      <hr style="margin:20px 0;border:none;border-top:1px solid var(--c-line)">
       <h3 style="margin-bottom:4px">班級與負責老師</h3>
       <p class="mut" style="margin-top:0">可以把班級改指派給其他老師（例如換任課老師）。「未指派」的班級只有管理人看得到。</p>
       <div id="aClasses"></div>
@@ -436,7 +445,59 @@
       var mine = keys.filter(function(c){ return scope[c].owner === t; });
       return '<tr><td>' + esc(teachersInfo[t].name || '（未填）') + '</td><td>' + esc(teachersInfo[t].email || '') + '</td><td>' + (mine.map(esc).join('、') || '—') + '</td><td>' + fmtTime(teachersInfo[t].lastLogin) + '</td></tr>';
     }).join('') + '</table>' : '<p class="mut">還沒有老師登入過老師工具。</p>';
+    renderTSel();
   }
+  /* 依老師設定任教班級 */
+  var extraCls = {};
+  function allClassKeys(){ var o = {}; Object.keys(scope).forEach(function(c){ o[c] = 1; }); Object.keys(extraCls).forEach(function(c){ o[c] = 1; }); return Object.keys(o).sort(); }
+  function renderTGrid(){
+    var t = $('tTeacher').value;
+    $('tGrid').innerHTML = allClassKeys().map(function(c){
+      var own = scope[c] ? scope[c].owner : null, mine = !!t && own === t;
+      var note = !scope[c] ? '新' : (own && own !== t ? esc(teacherName(own)) : (own ? '' : '未指派'));
+      return '<label style="font-weight:400;border:2px solid ' + (mine ? '#43a047' : 'var(--c-line)') + ';border-radius:10px;padding:4px 10px;background:' + (mine ? '#e8f5e9' : '#fff') + '">' +
+        '<input type="checkbox" data-tcls="' + esc(c) + '"' + (mine ? ' checked' : '') + '> <b>' + esc(c) + '</b>' + (note ? ' <span class="mut" style="font-size:.8rem">(' + note + ')</span>' : '') + '</label>';
+    }).join('') || '<p class="mut">還沒有班級，可以先用上面「新增班級」加入。</p>';
+  }
+  function renderTSel(){
+    var cur = $('tTeacher').value;
+    $('tTeacher').innerHTML = '<option value="">（請選老師）</option>' + Object.keys(teachersInfo).map(function(t){ return '<option value="' + esc(t) + '">' + esc(teacherName(t)) + '</option>'; }).join('');
+    if(teachersInfo[cur]) $('tTeacher').value = cur;
+    renderTGrid();
+  }
+  $('tTeacher').addEventListener('change', renderTGrid);
+  $('tAddBtn').addEventListener('click', function(){
+    var bad = [];
+    $('tAdd').value.split(/[,，、\s]+/).filter(Boolean).forEach(function(part){
+      var m = part.match(/^(\d+)[-~～](\d+)$/);
+      if(m){ var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+        if(b >= a && b - a < 40) for(var i = a; i <= b; i++) extraCls[String(i)] = 1; else bad.push(part); return; }
+      var c = normClass(part); if(validClass(c)) extraCls[c] = 1; else bad.push(part);
+    });
+    if(bad.length) alert('看不懂：' + bad.join('、') + '\n請用 701 或 701-712 這種寫法。');
+    $('tAdd').value = ''; renderTGrid();
+  });
+  $('tSave').addEventListener('click', function(){
+    var t = $('tTeacher').value; if(!t){ alert('請先選老師。'); return; }
+    var want = {}; $('tGrid').querySelectorAll('[data-tcls]:checked').forEach(function(x){ want[x.getAttribute('data-tcls')] = 1; });
+    var add = [], move = [], drop = [];
+    allClassKeys().forEach(function(c){
+      var own = scope[c] ? scope[c].owner : null;
+      if(want[c] && own !== t){ add.push(c); if(own) move.push(c + ' 班（原本：' + teacherName(own) + '）'); }
+      if(!want[c] && own === t) drop.push(c);
+    });
+    if(!add.length && !drop.length){ alert('沒有變更。'); return; }
+    var msg = '「' + teacherName(t) + '」\n' + (add.length ? '新增負責：' + add.join('、') + '\n' : '') + (drop.length ? '取消負責（變成未指派）：' + drop.join('、') + '\n' : '') +
+      (move.length ? '\n⚠️ 以下班級會從原本的老師移走：\n' + move.join('\n') + '\n' : '') + '\n確定要儲存嗎？';
+    if(!confirm(msg)) return;
+    var up = {};
+    function seatsOf(c){ var o = {}; if(!scope[c]) return o; Object.keys(scope[c].seats || {}).forEach(function(n){ o[n] = true; }); Object.keys(scope[c].students).forEach(function(sid){ o[parseInt(sid.split('-')[1], 10)] = true; }); return o; }
+    add.forEach(function(c){ up[c] = scope[c] ? { owner:t, seats:seatsOf(c) } : { owner:t, createdAt:firebase.database.ServerValue.TIMESTAMP }; });
+    drop.forEach(function(c){ up[c] = { owner:null, seats:seatsOf(c) }; });
+    Promise.all(Object.keys(up).map(function(c){ return db.ref('classes/' + c).update(up[c]); }))
+      .then(function(){ add.forEach(function(c){ delete extraCls[c]; }); alert('已儲存。'); return reload(); }, function(e){ alert('儲存失敗：' + authMsg(e)); });
+  });
+
   $('aClasses').addEventListener('click', function(e){
     var b = e.target.closest('[data-assign]'); if(!b) return;
     var c = b.getAttribute('data-assign'), owner = $('aClasses').querySelector('select[data-cls="'+c+'"]').value || null;
