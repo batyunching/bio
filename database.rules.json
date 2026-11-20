@@ -18,6 +18,14 @@
         }
       }
     },
+    "bingo-ch4": {
+      "rooms": {
+        "$room": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
     "admins": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"

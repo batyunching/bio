@@ -26,7 +26,7 @@
    - 名稱：`teachers` → 再在它底下按「＋」
    - 名稱：剛剛複製的 UID，值：`true`（布林值）
 5. **更新資料庫規則**：Realtime Database →「規則」→ 先和目前的規則比對，再把 `database.rules.json` 的內容貼上 →「發布」。
-   新規則包含：第 2 章原本的 `bingo`、第 3 章的 `bingo-ch3`、第 4 章反應時間排行榜 `leaderboards`（學生只能寫自己的成績，同一班看得到前 10 名）、管理人 `admins`、老師 `teachers`、老師稱呼 `teacherInfo`、班級負責老師 `classes`、學生資料 `students`（學生只能讀寫自己的資料；老師只能看自己負責班級的學生；管理人看全部）。
+   新規則包含：第 2 章原本的 `bingo`、第 3 章的 `bingo-ch3`、第 4 章的 `bingo-ch4`、第 4 章反應時間排行榜 `leaderboards`（學生只能寫自己的成績，同一班看得到前 10 名）、管理人 `admins`、老師 `teachers`、老師稱呼 `teacherInfo`、班級負責老師 `classes`、學生資料 `students`（學生只能讀寫自己的資料；老師只能看自己負責班級的學生；管理人看全部）。
 
 ### B. GitHub
 
