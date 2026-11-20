@@ -70,6 +70,20 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && ((auth.uid === $uid && !data.exists() && newData.child('status').val() === 'pending' && newData.child('email').val() === auth.token.email) || root.child('admins').child(auth.uid).val() === true)"
       }
+    },
+    "leaderboards": {
+      "ch4-reaction": {
+        "$cls": {
+          ".read": "auth != null",
+          ".indexOn": [
+            "t"
+          ],
+          "$sid": {
+            ".write": "auth != null && auth.token.email === $sid + '@student.bio'",
+            ".validate": "$sid.beginsWith($cls + '-') && newData.hasChildren(['t','at']) && newData.child('t').isNumber() && newData.child('t').val() > 0.05 && newData.child('t').val() < 0.3"
+          }
+        }
+      }
     }
   }
 }
