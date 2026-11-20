@@ -89,6 +89,24 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <div id="pwMask" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px">
+    <div class="card login" role="dialog" aria-labelledby="pwTitle" style="width:min(420px,100%);margin:0">
+      <h2 id="pwTitle" style="margin-top:0">🔑 修改密碼</h2>
+      <form id="pwForm">
+        <label for="pwOld">目前的密碼</label><input id="pwOld" type="password" autocomplete="current-password" required>
+        <label for="pwNew">新密碼（至少 6 個字元）</label><input id="pwNew" type="password" autocomplete="new-password" required>
+        <label for="pwNew2">再輸入一次新密碼</label><input id="pwNew2" type="password" autocomplete="new-password" required>
+        <label style="font-weight:400;display:flex;align-items:center;gap:6px;margin-top:8px"><input type="checkbox" id="pwShow" style="width:auto;min-height:0"> 顯示密碼</label>
+        <div class="err" id="pwErr"></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn" id="pwSave" type="submit" style="flex:1">儲存新密碼</button><button class="btn ghost" id="pwCancel" type="button">取消</button></div>
+      </form>
+      <div id="pwOk" class="hide" style="text-align:center">
+        <p style="font-size:1.2rem;font-weight:700;color:#2E7D32">✅ 密碼已更新！</p>
+        <p>下次登入請用<b>新密碼</b>，記在安全的地方，不要告訴同學。</p>
+        <button class="btn" id="pwDone" type="button" style="width:100%">好，我記住了</button>
+      </div>
+    </div>
+  </div>
 <script src="js/portal-common.js"></script>
 <script>
 (function(){
@@ -196,15 +214,30 @@
     if(!confirm('確定要登出嗎？')) return;
     auth.signOut().then(function(){ location.href = location.pathname; });
   });
+  // 改密碼：頁面內對話框（三欄＋顯示密碼），學生較好操作
   $('pwBtn').addEventListener('click', function(){
-    var oldPw = prompt('請輸入「目前的密碼」：'); if(!oldPw) return;
-    var nw = prompt('請輸入「新密碼」（至少 6 個字元）：'); if(!nw) return;
-    if(nw.length < 6){ alert('新密碼至少要 6 個字元。'); return; }
+    ['pwOld','pwNew','pwNew2'].forEach(function(id){ $(id).value = ''; $(id).type = 'password'; });
+    $('pwShow').checked = false; $('pwErr').textContent = ''; $('pwOk').classList.add('hide'); $('pwForm').classList.remove('hide');
+    $('pwMask').classList.remove('hide'); setTimeout(function(){ $('pwOld').focus(); }, 50);
+  });
+  function closePw(){ $('pwMask').classList.add('hide'); }
+  $('pwCancel').addEventListener('click', closePw); $('pwDone').addEventListener('click', closePw);
+  $('pwShow').addEventListener('change', function(){ var t = this.checked ? 'text' : 'password'; ['pwOld','pwNew','pwNew2'].forEach(function(id){ $(id).type = t; }); });
+  $('pwForm').addEventListener('submit', function(e){
+    e.preventDefault(); $('pwErr').textContent = '';
+    var oldPw = $('pwOld').value, nw = $('pwNew').value, nw2 = $('pwNew2').value;
+    if(nw.length < 6){ $('pwErr').textContent = '新密碼至少要 6 個字元。'; return; }
+    if(nw !== nw2){ $('pwErr').textContent = '兩次輸入的新密碼不一樣，請再確認。'; return; }
+    if(nw === oldPw){ $('pwErr').textContent = '新密碼不能和目前的密碼一樣。'; return; }
     var u = auth.currentUser, cred = firebase.auth.EmailAuthProvider.credential(u.email, oldPw);
+    $('pwSave').disabled = true;
     u.reauthenticateWithCredential(cred).then(function(){ return u.updatePassword(nw); }).then(function(){
       var sid = sidFromEmail(u.email); if(sid) db.ref('students/' + sid + '/profile/pwChanged').set(true).catch(function(){});
-      alert('密碼已更新，請記住新密碼！');
-    }).catch(function(er){ alert(authMsg(er)); });
+      $('pwForm').classList.add('hide'); $('pwOk').classList.remove('hide');
+    }, function(er){
+      var c = (er && er.code) || '';
+      $('pwErr').textContent = /wrong-password|invalid-credential|invalid-login/.test(c) ? '「目前的密碼」不對，請再試一次。' : authMsg(er);
+    }).then(function(){ $('pwSave').disabled = false; });
   });
 
   function renderHome(u, teacher, admin){
