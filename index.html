@@ -28,6 +28,11 @@
   .chap .go{ margin-top:auto; font-weight:900; color:var(--cc); }
   .soon{ opacity:.6; border-top-color:#B0BEC5; }
   .hide{ display:none !important; }
+  .mut{ color:var(--c-muted); }
+  .howto{ max-width:720px; margin:22px auto 0; }
+  .howto h3{ margin:0 0 4px; }
+  .howto .video{ position:relative; width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden; background:#000; margin:10px 0; }
+  .howto .video iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
   #segWho button[aria-pressed="true"]{ background:#263238; color:#fff; }
   .loading{ text-align:center; padding:60px; color:var(--c-muted); }
 </style>
@@ -76,6 +81,13 @@
         <button class="btn" id="regBtn" style="width:100%;font-size:1.15rem" type="submit">送出申請 ▶</button>
         <p style="margin-bottom:0"><button type="button" class="btn ghost" id="regBack" style="min-height:40px;padding:4px 14px;font-size:.9rem">⇦ 回到老師登入</button></p>
       </form>
+    </div>
+    <!-- 學生使用說明影片 -->
+    <div class="card howto">
+      <h3>▶ 第一次使用？先看「學生使用說明」影片</h3>
+      <p class="mut">影片會教你：怎麼用班級、座號和密碼登入，以及學習網站的基本使用方式。</p>
+      <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/C9_CNaRMflA?rel=0" title="生物學習網站 學生使用說明" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>
+      <p class="mut" style="margin-bottom:0;font-size:.85rem">影片無法播放？<a href="https://www.youtube.com/watch?v=C9_CNaRMflA" target="_blank" rel="noopener">到 YouTube 觀看 ↗</a></p>
     </div>
   </section>
 
